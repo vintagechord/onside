@@ -5,6 +5,7 @@ import { ThemeToggle } from "./theme-toggle";
 const navLinks = [
   { label: "음반심의", href: "/guide?tab=album" },
   { label: "M/V심의", href: "/guide?tab=mv" },
+  { label: "Studio", href: "/studio" },
   { label: "심의접수", href: "/dashboard/new" },
   { label: "진행상황", href: "/dashboard" },
   { label: "노래방 요청", href: "/karaoke-request" },

@@ -46,7 +46,7 @@ export default async function HistoryPage() {
             <Link
               key={submission.id}
               href={`/dashboard/submissions/${submission.id}`}
-              className="grid gap-4 rounded-2xl border border-border/60 bg-card/80 p-4 text-sm transition hover:border-foreground md:grid-cols-[1.4fr_1fr_1fr]"
+              className="grid gap-4 rounded-2xl border border-border/60 bg-card/80 p-4 text-sm transition hover:border-foreground md:grid-cols-[1.4fr_1fr_1fr_1fr]"
             >
               <div>
                 <p className="font-semibold text-foreground">
@@ -61,13 +61,17 @@ export default async function HistoryPage() {
                 <p>상태: {submission.status}</p>
                 <p>결제: {submission.payment_status}</p>
               </div>
+              <div className="text-xs text-muted-foreground">
+                <p>패키지: {submission.package?.name ?? "-"}</p>
+                <p>신청일: {formatDateTime(submission.created_at)}</p>
+              </div>
               <div className="text-xs text-muted-foreground md:text-right">
                 <p>
                   {submission.package?.price_krw
                     ? `${formatCurrency(submission.package.price_krw)}원`
                     : "-"}
                 </p>
-                <p>{formatDateTime(submission.updated_at)}</p>
+                <p>업데이트: {formatDateTime(submission.updated_at)}</p>
               </div>
             </Link>
           ))

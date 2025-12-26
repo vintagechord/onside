@@ -24,7 +24,14 @@ const typeOptions = ["ALBUM", "MV_DISTRIBUTION", "MV_BROADCAST"];
 export default async function AdminSubmissionsPage({
   searchParams,
 }: {
-  searchParams: { status?: string; payment?: string; type?: string; q?: string };
+  searchParams: {
+    status?: string;
+    payment?: string;
+    type?: string;
+    q?: string;
+    from?: string;
+    to?: string;
+  };
 }) {
   const supabase = createServerSupabase();
   let query = supabase
@@ -48,6 +55,12 @@ export default async function AdminSubmissionsPage({
       `title.ilike.%${searchParams.q}%,artist_name.ilike.%${searchParams.q}%`,
     );
   }
+  if (searchParams.from) {
+    query = query.gte("created_at", `${searchParams.from}T00:00:00.000Z`);
+  }
+  if (searchParams.to) {
+    query = query.lte("created_at", `${searchParams.to}T23:59:59.999Z`);
+  }
 
   const { data: submissions } = await query;
 
@@ -70,12 +83,24 @@ export default async function AdminSubmissionsPage({
         </Link>
       </div>
 
-      <form className="mt-6 grid gap-4 rounded-[28px] border border-border/60 bg-card/80 p-6 md:grid-cols-[1fr_repeat(3,auto)_auto]">
+      <form className="mt-6 grid gap-4 rounded-[28px] border border-border/60 bg-card/80 p-6 md:grid-cols-[1fr_repeat(5,auto)_auto]">
         <input
           name="q"
           defaultValue={searchParams.q ?? ""}
           placeholder="검색어 (제목/아티스트)"
           className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm"
+        />
+        <input
+          type="date"
+          name="from"
+          defaultValue={searchParams.from ?? ""}
+          className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm"
+        />
+        <input
+          type="date"
+          name="to"
+          defaultValue={searchParams.to ?? ""}
+          className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm"
         />
         <select
           name="type"
