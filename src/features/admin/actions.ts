@@ -39,6 +39,7 @@ const submissionStatusSchema = z.object({
   submissionId: z.string().uuid(),
   status: submissionStatusEnum,
   adminMemo: z.string().optional(),
+  mvRatingFilePath: z.string().optional(),
 });
 
 const paymentStatusSchema = z.object({
@@ -111,12 +112,23 @@ export async function updateSubmissionStatusAction(
   }
 
   const supabase = await createServerSupabase();
+  const updatePayload: {
+    status: z.infer<typeof submissionStatusEnum>;
+    admin_memo: string | null;
+    mv_rating_file_path?: string | null;
+  } = {
+    status: parsed.data.status,
+    admin_memo: parsed.data.adminMemo || null,
+  };
+
+  if (parsed.data.mvRatingFilePath !== undefined) {
+    const trimmed = parsed.data.mvRatingFilePath.trim();
+    updatePayload.mv_rating_file_path = trimmed ? trimmed : null;
+  }
+
   const { error } = await supabase
     .from("submissions")
-    .update({
-      status: parsed.data.status,
-      admin_memo: parsed.data.adminMemo || null,
-    })
+    .update(updatePayload)
     .eq("id", parsed.data.submissionId);
 
   if (error) {
@@ -133,16 +145,21 @@ export async function updateSubmissionStatusAction(
 }
 
 export async function updateSubmissionStatusFormAction(
-  _prevState: AdminActionState,
   formData: FormData,
-): Promise<AdminActionState> {
-  return updateSubmissionStatusAction({
+): Promise<void> {
+  const rawRatingFilePath = formData.get("mvRatingFilePath");
+  const result = await updateSubmissionStatusAction({
     submissionId: String(formData.get("submissionId") ?? ""),
     status: String(formData.get("status") ?? "") as z.infer<
       typeof submissionStatusEnum
     >,
     adminMemo: String(formData.get("adminMemo") ?? "") || undefined,
+    mvRatingFilePath:
+      rawRatingFilePath !== null ? String(rawRatingFilePath ?? "") : undefined,
   });
+  if (result.error) {
+    console.error(result.error);
+  }
 }
 
 export async function updatePaymentStatusAction(
@@ -190,16 +207,18 @@ export async function updatePaymentStatusAction(
 }
 
 export async function updatePaymentStatusFormAction(
-  _prevState: AdminActionState,
   formData: FormData,
-): Promise<AdminActionState> {
-  return updatePaymentStatusAction({
+): Promise<void> {
+  const result = await updatePaymentStatusAction({
     submissionId: String(formData.get("submissionId") ?? ""),
     paymentStatus: String(formData.get("paymentStatus") ?? "") as z.infer<
       typeof paymentStatusEnum
     >,
     adminMemo: String(formData.get("adminMemo") ?? "") || undefined,
   });
+  if (result.error) {
+    console.error(result.error);
+  }
 }
 
 export async function updateStationReviewAction(
@@ -241,16 +260,18 @@ export async function updateStationReviewAction(
 }
 
 export async function updateStationReviewFormAction(
-  _prevState: AdminActionState,
   formData: FormData,
-): Promise<AdminActionState> {
-  return updateStationReviewAction({
+): Promise<void> {
+  const result = await updateStationReviewAction({
     reviewId: String(formData.get("reviewId") ?? ""),
     status: String(formData.get("status") ?? "") as z.infer<
       typeof stationStatusEnum
     >,
     resultNote: String(formData.get("resultNote") ?? "") || undefined,
   });
+  if (result.error) {
+    console.error(result.error);
+  }
 }
 
 export async function upsertPackageAction(
@@ -279,11 +300,10 @@ export async function upsertPackageAction(
 }
 
 export async function upsertPackageFormAction(
-  _prevState: AdminActionState,
   formData: FormData,
-): Promise<AdminActionState> {
+): Promise<void> {
   const id = String(formData.get("id") ?? "");
-  return upsertPackageAction({
+  const result = await upsertPackageAction({
     id: id ? id : undefined,
     name: String(formData.get("name") ?? ""),
     stationCount: Number(formData.get("stationCount") ?? 0),
@@ -291,6 +311,9 @@ export async function upsertPackageFormAction(
     description: String(formData.get("description") ?? "") || undefined,
     isActive: formData.get("isActive") === "on",
   });
+  if (result.error) {
+    console.error(result.error);
+  }
 }
 
 export async function upsertStationAction(
@@ -317,16 +340,18 @@ export async function upsertStationAction(
 }
 
 export async function upsertStationFormAction(
-  _prevState: AdminActionState,
   formData: FormData,
-): Promise<AdminActionState> {
+): Promise<void> {
   const id = String(formData.get("id") ?? "");
-  return upsertStationAction({
+  const result = await upsertStationAction({
     id: id ? id : undefined,
     name: String(formData.get("name") ?? ""),
     code: String(formData.get("code") ?? ""),
     isActive: formData.get("isActive") === "on",
   });
+  if (result.error) {
+    console.error(result.error);
+  }
 }
 
 export async function updatePackageStationsAction(
@@ -372,13 +397,15 @@ export async function updatePackageStationsAction(
 }
 
 export async function updatePackageStationsFormAction(
-  _prevState: AdminActionState,
   formData: FormData,
-): Promise<AdminActionState> {
-  return updatePackageStationsAction({
+): Promise<void> {
+  const result = await updatePackageStationsAction({
     packageId: String(formData.get("packageId") ?? ""),
     stationCodes: String(formData.get("stationCodes") ?? ""),
   });
+  if (result.error) {
+    console.error(result.error);
+  }
 }
 
 export async function upsertAdBannerAction(
@@ -421,11 +448,10 @@ export async function upsertAdBannerAction(
 }
 
 export async function upsertAdBannerFormAction(
-  _prevState: AdminActionState,
   formData: FormData,
-): Promise<AdminActionState> {
+): Promise<void> {
   const id = String(formData.get("id") ?? "");
-  return upsertAdBannerAction({
+  const result = await upsertAdBannerAction({
     id: id ? id : undefined,
     title: String(formData.get("title") ?? ""),
     imageUrl: String(formData.get("imageUrl") ?? ""),
@@ -434,6 +460,9 @@ export async function upsertAdBannerFormAction(
     startsAt: String(formData.get("startsAt") ?? "") || undefined,
     endsAt: String(formData.get("endsAt") ?? "") || undefined,
   });
+  if (result.error) {
+    console.error(result.error);
+  }
 }
 
 export async function deleteAdBannerAction(
@@ -454,10 +483,12 @@ export async function deleteAdBannerAction(
 }
 
 export async function deleteAdBannerFormAction(
-  _prevState: AdminActionState,
   formData: FormData,
-): Promise<AdminActionState> {
-  return deleteAdBannerAction({
+): Promise<void> {
+  const result = await deleteAdBannerAction({
     id: String(formData.get("id") ?? ""),
   });
+  if (result.error) {
+    console.error(result.error);
+  }
 }

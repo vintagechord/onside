@@ -148,32 +148,37 @@ export default async function AdminSubmissionsPage({
 
       <div className="mt-6 space-y-3">
         {submissions && submissions.length > 0 ? (
-          submissions.map((submission) => (
-            <Link
-              key={submission.id}
-              href={`/admin/submissions/${submission.id}`}
-              className="grid gap-4 rounded-2xl border border-border/60 bg-card/80 p-4 text-sm transition hover:border-foreground md:grid-cols-[1.4fr_1fr_1fr]"
-            >
-              <div>
-                <p className="font-semibold text-foreground">
-                  {submission.title || "제목 미입력"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {submission.artist_name || "아티스트 미입력"} ·{" "}
-                  {submission.type}
-                  {submission.guest_name ? " · 비회원" : ""}
-                </p>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                <p>상태: {submission.status}</p>
-                <p>결제: {submission.payment_status}</p>
-              </div>
-              <div className="text-xs text-muted-foreground md:text-right">
-                <p>{submission.package?.name ?? "-"}</p>
-                <p>{formatDateTime(submission.created_at)}</p>
-              </div>
-            </Link>
-          ))
+          submissions.map((submission) => {
+            const packageInfo = Array.isArray(submission.package)
+              ? submission.package[0]
+              : submission.package;
+            return (
+              <Link
+                key={submission.id}
+                href={`/admin/submissions/${submission.id}`}
+                className="grid gap-4 rounded-2xl border border-border/60 bg-card/80 p-4 text-sm transition hover:border-foreground md:grid-cols-[1.4fr_1fr_1fr]"
+              >
+                <div>
+                  <p className="font-semibold text-foreground">
+                    {submission.title || "제목 미입력"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {submission.artist_name || "아티스트 미입력"} ·{" "}
+                    {submission.type}
+                    {submission.guest_name ? " · 비회원" : ""}
+                  </p>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  <p>상태: {submission.status}</p>
+                  <p>결제: {submission.payment_status}</p>
+                </div>
+                <div className="text-xs text-muted-foreground md:text-right">
+                  <p>{packageInfo?.name ?? "-"}</p>
+                  <p>{formatDateTime(submission.created_at)}</p>
+                </div>
+              </Link>
+            );
+          })
         ) : (
           <div className="rounded-2xl border border-dashed border-border/60 bg-background/70 px-4 py-6 text-xs text-muted-foreground">
             조회된 접수가 없습니다.

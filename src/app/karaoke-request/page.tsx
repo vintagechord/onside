@@ -1,8 +1,8 @@
-import { KaraokeForm } from "@/features/karaoke/karaoke-form";
+import { KaraokeTabs } from "@/features/karaoke/karaoke-tabs";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export const metadata = {
-  title: "노래방 등록 요청",
+  title: "노래방 등록",
 };
 
 export default async function KaraokeRequestPage() {
@@ -11,20 +11,68 @@ export default async function KaraokeRequestPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const { data: promotions } = await supabase
+    .from("karaoke_promotions")
+    .select(
+      "id, credits_balance, credits_required, tj_enabled, ky_enabled, reference_url, submission:submissions ( id, title, artist_name, melon_url )",
+    )
+    .eq("status", "ACTIVE")
+    .gt("credits_balance", 0)
+    .order("credits_balance", { ascending: false })
+    .limit(12);
+
+  let creditBalance = 0;
+  let requests: Array<{
+    id: string;
+    title: string;
+    artist: string | null;
+    status: string;
+    created_at: string;
+    updated_at: string | null;
+  }> = [];
+  if (user) {
+    const { data: creditRow } = await supabase
+      .from("karaoke_credits")
+      .select("balance")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    creditBalance = creditRow?.balance ?? 0;
+
+    const { data: requestRows } = await supabase
+      .from("karaoke_requests")
+      .select("id, title, artist, status, created_at, updated_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    requests = requestRows ?? [];
+  }
+
+  const normalizedPromotions =
+    promotions?.map((promotion) => ({
+      ...promotion,
+      submission: Array.isArray(promotion.submission)
+        ? promotion.submission[0]
+        : promotion.submission,
+    })) ?? [];
+
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-12">
       <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
         Karaoke
       </p>
       <h1 className="font-display mt-2 text-3xl text-foreground">
-        노래방 등록 요청
+        노래방 등록
       </h1>
       <p className="mt-3 text-sm text-muted-foreground">
-        비회원도 요청할 수 있으며, 접수 후 담당자가 진행 결과를 안내드립니다.
+        비회원도 요청할 수 있으며, 추천 참여로 크레딧을 적립할 수 있습니다.
       </p>
 
       <div className="mt-8 rounded-[32px] border border-border/60 bg-card/80 p-6">
-        <KaraokeForm userId={user?.id ?? null} />
+        <KaraokeTabs
+          userId={user?.id ?? null}
+          promotions={normalizedPromotions}
+          creditBalance={creditBalance}
+          requests={requests}
+        />
       </div>
     </div>
   );

@@ -11,15 +11,178 @@ export type SubmissionActionState = {
   guestToken?: string;
 };
 
+export type RatingFileActionState = {
+  error?: string;
+  url?: string;
+};
+
+type SupabaseError = {
+  code?: string | null;
+  message?: string | null;
+};
+
+type SupabaseClient = Awaited<ReturnType<typeof createServerSupabase>>;
+
+const extractMissingColumn = (error: SupabaseError) => {
+  const message = error.message ?? "";
+  const match =
+    message.match(/'([^']+)' column/i) ||
+    message.match(/column \"([^\"]+)\"/i);
+  return match?.[1] ?? null;
+};
+
+const stripColumn = <T extends Record<string, unknown>>(
+  payload: T,
+  column: string,
+) => {
+  const next = { ...payload };
+  delete next[column];
+  return next;
+};
+
+const upsertWithColumnFallback = async (
+  db: SupabaseClient,
+  payload: Record<string, unknown>,
+) => {
+  let currentPayload = { ...payload };
+  const removed = new Set<string>();
+  const maxAttempts = Math.max(Object.keys(currentPayload).length, 12);
+  let lastError: SupabaseError | null = null;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const { error } = await db
+      .from("submissions")
+      .upsert(currentPayload, { onConflict: "id" });
+    if (!error) {
+      return { error: null };
+    }
+    lastError = error;
+    if (error.code === "PGRST204") {
+      const missing = extractMissingColumn(error);
+      if (missing && missing in currentPayload && !removed.has(missing)) {
+        removed.add(missing);
+        currentPayload = stripColumn(currentPayload, missing);
+        continue;
+      }
+    }
+    return { error };
+  }
+  return { error: lastError ?? { message: "업데이트 실패" } };
+};
+
+const insertWithColumnFallback = async (
+  db: SupabaseClient,
+  table: "album_tracks" | "submission_files",
+  rows: Record<string, unknown>[],
+) => {
+  let currentRows = rows.map((row) => ({ ...row }));
+  const removed = new Set<string>();
+  const maxAttempts = Math.max(
+    Object.keys(currentRows[0] ?? {}).length,
+    12,
+  );
+  let lastError: SupabaseError | null = null;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const { error } = await db.from(table).insert(currentRows);
+    if (!error) {
+      return { error: null };
+    }
+    lastError = error;
+    if (error.code === "PGRST204") {
+      const missing = extractMissingColumn(error);
+      if (missing && missing in currentRows[0] && !removed.has(missing)) {
+        removed.add(missing);
+        currentRows = currentRows.map((row) => stripColumn(row, missing));
+        continue;
+      }
+    }
+    return { error };
+  }
+  return { error: lastError ?? { message: "삽입 실패" } };
+};
+
+const formatSubmissionError = (error: SupabaseError) => {
+  const withCode = (message: string) =>
+    error.code ? `${message} (오류 코드: ${error.code})` : message;
+
+  if (error.code === "PGRST204") {
+    const match = error.message?.match(/'([^']+)' column/i);
+    const column = match?.[1];
+    return withCode(
+      column
+        ? `DB 컬럼 '${column}'이 누락되었습니다. Supabase 마이그레이션을 먼저 실행해주세요.`
+        : "DB 컬럼이 누락되었습니다. Supabase 마이그레이션을 먼저 실행해주세요.",
+    );
+  }
+  if (error.code === "23503") {
+    return withCode(
+      "패키지 또는 방송국 정보가 올바르지 않습니다. 새로고침 후 다시 시도해주세요.",
+    );
+  }
+  if (error.code === "23502") {
+    return withCode("필수 입력값이 누락되었습니다. 입력 내용을 다시 확인해주세요.");
+  }
+  if (error.code === "23505") {
+    return withCode(
+      "이미 등록된 접수 정보가 있습니다. 새로고침 후 다시 시도해주세요.",
+    );
+  }
+  if (error.code === "42501") {
+    return withCode(
+      "권한 문제로 접수를 저장할 수 없습니다. 다시 로그인해주세요.",
+    );
+  }
+  if (error.code === "42703") {
+    return withCode(
+      "DB 컬럼이 누락되었습니다. Supabase 마이그레이션을 먼저 실행해주세요.",
+    );
+  }
+  const loweredMessage = error.message?.toLowerCase() ?? "";
+  if (
+    loweredMessage.includes("row level security") ||
+    loweredMessage.includes("permission")
+  ) {
+    return withCode(
+      "권한 문제로 접수를 저장할 수 없습니다. 다시 로그인해주세요.",
+    );
+  }
+  if (
+    loweredMessage.includes("invalid api key") ||
+    loweredMessage.includes("jwt")
+  ) {
+    return withCode(
+      "서버 인증 설정에 문제가 있습니다. 관리자에게 문의해주세요.",
+    );
+  }
+  if (error.message) {
+    return withCode(`접수 저장에 실패했습니다. (${error.message})`);
+  }
+  if (error.code) {
+    return `접수 저장에 실패했습니다. (오류 코드: ${error.code})`;
+  }
+  return "접수 저장에 실패했습니다.";
+};
+
+const isMissingSessionError = (error: SupabaseError | null | undefined) => {
+  const message = error?.message?.toLowerCase() ?? "";
+  return message.includes("auth session missing");
+};
+
 const trackSchema = z.object({
   trackTitle: z.string().min(1),
+  trackTitleKr: z.string().optional(),
+  trackTitleEn: z.string().optional(),
+  trackTitleOfficial: z.enum(["KR", "EN"]).optional(),
   featuring: z.string().optional(),
-  composer: z.string().optional(),
+  composer: z.string().min(1),
   lyricist: z.string().optional(),
   arranger: z.string().optional(),
   lyrics: z.string().optional(),
   notes: z.string().optional(),
   isTitle: z.boolean().optional(),
+  titleRole: z.enum(["MAIN", "SUB"]).optional(),
+  broadcastSelected: z.boolean().optional(),
 });
 
 const fileSchema = z.object({
@@ -36,8 +199,21 @@ const albumSubmissionSchema = z.object({
   selectedStationIds: z.array(z.string().uuid()).optional(),
   title: z.string().min(1),
   artistName: z.string().min(1),
+  artistNameKr: z.string().optional(),
+  artistNameEn: z.string().optional(),
   releaseDate: z.string().optional(),
   genre: z.string().optional(),
+  distributor: z.string().optional(),
+  productionCompany: z.string().optional(),
+  applicantName: z.string().optional(),
+  applicantEmail: z.string().email().optional(),
+  applicantPhone: z.string().optional(),
+  previousRelease: z.string().optional(),
+  artistType: z.string().optional(),
+  artistGender: z.string().optional(),
+  artistMembers: z.string().optional(),
+  isOneClick: z.boolean().optional(),
+  melonUrl: z.string().optional(),
   guestToken: z.string().min(8).optional(),
   guestName: z.string().min(1).optional(),
   guestCompany: z.string().optional(),
@@ -48,7 +224,7 @@ const albumSubmissionSchema = z.object({
   paymentMethod: z.enum(["CARD", "BANK"]).optional(),
   bankDepositorName: z.string().optional(),
   status: z.enum(["DRAFT", "SUBMITTED"]),
-  tracks: z.array(trackSchema).min(1),
+  tracks: z.array(trackSchema).optional(),
   files: z.array(fileSchema).optional(),
 });
 
@@ -59,6 +235,27 @@ const mvSubmissionSchema = z.object({
   selectedStationIds: z.array(z.string().uuid()).optional(),
   title: z.string().min(1),
   artistName: z.string().min(1),
+  director: z.string().optional(),
+  leadActor: z.string().optional(),
+  storyline: z.string().optional(),
+  productionCompany: z.string().optional(),
+  agency: z.string().optional(),
+  albumTitle: z.string().optional(),
+  productionDate: z.string().optional(),
+  distributionCompany: z.string().optional(),
+  businessRegNo: z.string().optional(),
+  usage: z.string().optional(),
+  desiredRating: z.string().optional(),
+  memo: z.string().optional(),
+  songTitle: z.string().optional(),
+  songTitleKr: z.string().optional(),
+  songTitleEn: z.string().optional(),
+  songTitleOfficial: z.enum(["KR", "EN"]).optional(),
+  composer: z.string().optional(),
+  lyricist: z.string().optional(),
+  arranger: z.string().optional(),
+  songMemo: z.string().optional(),
+  lyrics: z.string().optional(),
   releaseDate: z.string().optional(),
   genre: z.string().optional(),
   mvType: z.enum(["MV_DISTRIBUTION", "MV_BROADCAST"]),
@@ -78,6 +275,96 @@ const mvSubmissionSchema = z.object({
   files: z.array(fileSchema).optional(),
 });
 
+const ratingFileSchema = z.object({
+  submissionId: z.string().uuid(),
+  guestToken: z.string().min(8).optional(),
+});
+
+const isMvSubmissionType = (type: string) =>
+  type === "MV_BROADCAST" || type === "MV_DISTRIBUTION";
+
+const isResultReadyStatus = (status: string) =>
+  status === "RESULT_READY" || status === "COMPLETED";
+
+export async function getMvRatingFileUrlAction(
+  payload: z.infer<typeof ratingFileSchema>,
+): Promise<RatingFileActionState> {
+  const parsed = ratingFileSchema.safeParse(payload);
+  if (!parsed.success) {
+    return { error: "입력값을 확인해주세요." };
+  }
+
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError && !isMissingSessionError(userError)) {
+    return { error: "로그인 정보를 확인할 수 없습니다." };
+  }
+
+  const admin = createAdminClient();
+  let submission:
+    | {
+        id: string;
+        status: string;
+        type: string;
+        mv_rating_file_path: string | null;
+        guest_token?: string | null;
+      }
+    | null = null;
+
+  if (user) {
+    const { data } = await supabase
+      .from("submissions")
+      .select("id, status, type, mv_rating_file_path")
+      .eq("id", parsed.data.submissionId)
+      .maybeSingle();
+    submission = data ?? null;
+  } else {
+    if (!parsed.data.guestToken) {
+      return { error: "비회원 인증 정보가 필요합니다." };
+    }
+    const { data } = await admin
+      .from("submissions")
+      .select("id, status, type, mv_rating_file_path, guest_token")
+      .eq("id", parsed.data.submissionId)
+      .maybeSingle();
+    if (!data || data.guest_token !== parsed.data.guestToken) {
+      return { error: "접근 권한이 없습니다." };
+    }
+    submission = data;
+  }
+
+  if (!submission) {
+    return { error: "접수 정보를 찾을 수 없습니다." };
+  }
+
+  if (!isMvSubmissionType(submission.type)) {
+    return { error: "등급분류 파일은 뮤직비디오 심의에만 제공됩니다." };
+  }
+
+  if (!isResultReadyStatus(submission.status)) {
+    return { error: "심의 완료 후 다운로드할 수 있습니다." };
+  }
+
+  const filePath = submission.mv_rating_file_path?.trim();
+  if (!filePath) {
+    return { error: "등록된 등급분류 파일이 없습니다." };
+  }
+
+  const { data, error } = await admin.storage
+    .from("submissions")
+    .createSignedUrl(filePath, 60 * 10);
+
+  if (error || !data?.signedUrl) {
+    return { error: "다운로드 링크를 생성할 수 없습니다." };
+  }
+
+  return { url: data.signedUrl };
+}
+
 export async function saveAlbumSubmissionAction(
   payload: z.infer<typeof albumSubmissionSchema>,
 ): Promise<SubmissionActionState> {
@@ -93,7 +380,7 @@ export async function saveAlbumSubmissionAction(
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError) {
+  if (userError && !isMissingSessionError(userError)) {
     return { error: "로그인 정보를 확인할 수 없습니다." };
   }
 
@@ -108,10 +395,12 @@ export async function saveAlbumSubmissionAction(
     return { error: "비회원 정보(담당자, 연락처, 이메일)를 입력해주세요." };
   }
 
-  const db = isGuest ? createAdminClient() : supabase;
+  const adminDb = createAdminClient();
+  let db = isGuest ? adminDb : supabase;
 
   const hasPackage = Boolean(parsed.data.packageId);
   let amountKrw = parsed.data.amountKrw ?? 0;
+  const isOneClick = parsed.data.isOneClick ?? false;
 
   if (hasPackage && parsed.data.packageId) {
     const { data: selectedPackage, error: packageError } = await db
@@ -123,10 +412,12 @@ export async function saveAlbumSubmissionAction(
     if (packageError || !selectedPackage) {
       return { error: "패키지 정보를 확인할 수 없습니다." };
     }
-    amountKrw = selectedPackage.price_krw;
+    if (amountKrw <= 0) {
+      amountKrw = selectedPackage.price_krw;
+    }
   }
 
-  if (!hasPackage && amountKrw <= 0) {
+  if (amountKrw <= 0) {
     return { error: "결제 금액 정보를 확인할 수 없습니다." };
   }
 
@@ -149,8 +440,21 @@ export async function saveAlbumSubmissionAction(
     type: "ALBUM",
     title: parsed.data.title,
     artist_name: parsed.data.artistName,
+    artist_name_kr: parsed.data.artistNameKr || null,
+    artist_name_en: parsed.data.artistNameEn || null,
     release_date: parsed.data.releaseDate || null,
     genre: parsed.data.genre || null,
+    distributor: parsed.data.distributor || null,
+    production_company: parsed.data.productionCompany || null,
+    applicant_name: parsed.data.applicantName || null,
+    applicant_email: parsed.data.applicantEmail || null,
+    applicant_phone: parsed.data.applicantPhone || null,
+    previous_release: parsed.data.previousRelease || null,
+    artist_type: parsed.data.artistType || null,
+    artist_gender: parsed.data.artistGender || null,
+    artist_members: parsed.data.artistMembers || null,
+    is_oneclick: isOneClick,
+    melon_url: parsed.data.melonUrl || null,
     package_id: parsed.data.packageId,
     amount_krw: amountKrw,
     guest_name: isGuest ? parsed.data.guestName : null,
@@ -170,12 +474,62 @@ export async function saveAlbumSubmissionAction(
     payment_status: shouldRequestPayment ? "PAYMENT_PENDING" : "UNPAID",
   };
 
-  const { error: submissionError } = await db
-    .from("submissions")
-    .upsert(submissionPayload, { onConflict: "id" });
+  let submissionError = (await upsertWithColumnFallback(db, submissionPayload))
+    .error;
 
   if (submissionError) {
-    return { error: "접수 저장에 실패했습니다." };
+    if (db !== adminDb) {
+      const { data: existingSubmission } = await adminDb
+        .from("submissions")
+        .select("id, user_id, guest_token")
+        .eq("id", parsed.data.submissionId)
+        .maybeSingle();
+
+      if (
+        existingSubmission?.user_id &&
+        user &&
+        existingSubmission.user_id !== user.id
+      ) {
+        return {
+          error:
+            "권한 문제로 접수를 저장할 수 없습니다. 다시 로그인해주세요. (오류 코드: AUTH_MISMATCH)",
+        };
+      }
+
+      if (
+        !existingSubmission?.user_id &&
+        existingSubmission?.guest_token &&
+        parsed.data.guestToken &&
+        existingSubmission.guest_token !== parsed.data.guestToken
+      ) {
+        return {
+          error:
+            "권한 문제로 접수를 저장할 수 없습니다. 다시 로그인해주세요. (오류 코드: AUTH_MISMATCH)",
+        };
+      }
+
+      const fallbackResult = await upsertWithColumnFallback(adminDb, {
+        ...submissionPayload,
+        user_id: user?.id ?? null,
+      });
+      const fallbackError = fallbackResult.error;
+
+      if (fallbackError) {
+        console.error("Submission upsert failed", fallbackError);
+        return { error: formatSubmissionError(fallbackError) };
+      }
+
+      db = adminDb;
+      submissionError = null;
+    } else {
+      console.error("Submission upsert failed", submissionError);
+      return { error: formatSubmissionError(submissionError) };
+    }
+  }
+
+  if (submissionError) {
+    console.error("Submission upsert failed", submissionError);
+    return { error: formatSubmissionError(submissionError) };
   }
 
   await db
@@ -183,25 +537,38 @@ export async function saveAlbumSubmissionAction(
     .delete()
     .eq("submission_id", parsed.data.submissionId);
 
-  const trackRows = parsed.data.tracks.map((track, index) => ({
-    submission_id: parsed.data.submissionId,
-    track_no: index + 1,
-    track_title: track.trackTitle,
-    featuring: track.featuring || null,
-    composer: track.composer || null,
-    lyricist: track.lyricist || null,
-    arranger: track.arranger || null,
-    lyrics: track.lyrics || null,
-    notes: track.notes || null,
-    is_title: Boolean(track.isTitle),
-  }));
+  const trackRows =
+    parsed.data.tracks?.map((track, index) => ({
+      submission_id: parsed.data.submissionId,
+      track_no: index + 1,
+      track_title: track.trackTitle,
+      track_title_kr: track.trackTitleKr || null,
+      track_title_en: track.trackTitleEn || null,
+      track_title_official: track.trackTitleOfficial || null,
+      featuring: track.featuring || null,
+      composer: track.composer || null,
+      lyricist: track.lyricist || null,
+      arranger: track.arranger || null,
+      lyrics: track.lyrics || null,
+      notes: track.notes || null,
+      is_title: Boolean(track.isTitle),
+      title_role: track.titleRole || null,
+      broadcast_selected: Boolean(track.broadcastSelected),
+    })) ?? [];
 
-  const { error: trackError } = await db
-    .from("album_tracks")
-    .insert(trackRows);
+  if (trackRows.length > 0) {
+    const trackResult = await insertWithColumnFallback(
+      db,
+      "album_tracks",
+      trackRows,
+    );
+    const trackError = trackResult.error;
 
-  if (trackError) {
-    return { error: "트랙 정보를 저장할 수 없습니다." };
+    if (trackError) {
+      return { error: "트랙 정보를 저장할 수 없습니다." };
+    }
+  } else if (!isOneClick) {
+    return { error: "트랙 정보를 입력해주세요." };
   }
 
   await db
@@ -221,9 +588,12 @@ export async function saveAlbumSubmissionAction(
     })) ?? [];
 
   if (fileRows.length > 0) {
-    const { error: fileError } = await db
-      .from("submission_files")
-      .insert(fileRows);
+    const fileResult = await insertWithColumnFallback(
+      db,
+      "submission_files",
+      fileRows,
+    );
+    const fileError = fileResult.error;
 
     if (fileError) {
       return { error: "파일 정보를 저장할 수 없습니다." };
@@ -303,7 +673,7 @@ export async function saveMvSubmissionAction(
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError) {
+  if (userError && !isMissingSessionError(userError)) {
     return { error: "로그인 정보를 확인할 수 없습니다." };
   }
 
@@ -318,12 +688,23 @@ export async function saveMvSubmissionAction(
     return { error: "비회원 정보(담당자, 연락처, 이메일)를 입력해주세요." };
   }
 
-  const db = isGuest ? createAdminClient() : supabase;
+  const adminDb = createAdminClient();
+  let db = isGuest ? adminDb : supabase;
 
   const amountKrw = parsed.data.amountKrw ?? 0;
   if (amountKrw <= 0) {
     return { error: "결제 금액 정보를 확인할 수 없습니다." };
   }
+  const songTitleValue =
+    parsed.data.songTitle ||
+    (parsed.data.songTitleOfficial === "KR"
+      ? parsed.data.songTitleKr
+      : parsed.data.songTitleOfficial === "EN"
+        ? parsed.data.songTitleEn
+        : parsed.data.songTitleKr || parsed.data.songTitleEn) ||
+    null;
+  const songTitleKrValue = parsed.data.songTitleKr || null;
+  const songTitleEnValue = parsed.data.songTitleEn || null;
 
   const paymentMethod = parsed.data.paymentMethod ?? "BANK";
   const isSubmitted = parsed.data.status === "SUBMITTED";
@@ -349,6 +730,27 @@ export async function saveMvSubmissionAction(
     genre: parsed.data.genre || null,
     mv_runtime: parsed.data.runtime || null,
     mv_format: parsed.data.format || null,
+    mv_director: parsed.data.director || null,
+    mv_lead_actor: parsed.data.leadActor || null,
+    mv_storyline: parsed.data.storyline || null,
+    mv_production_company: parsed.data.productionCompany || null,
+    mv_agency: parsed.data.agency || null,
+    mv_album_title: parsed.data.albumTitle || null,
+    mv_production_date: parsed.data.productionDate || null,
+    mv_distribution_company: parsed.data.distributionCompany || null,
+    mv_business_reg_no: parsed.data.businessRegNo || null,
+    mv_usage: parsed.data.usage || null,
+    mv_desired_rating: parsed.data.desiredRating || null,
+    mv_memo: parsed.data.memo || null,
+    mv_song_title: songTitleValue,
+    mv_song_title_kr: songTitleKrValue,
+    mv_song_title_en: songTitleEnValue,
+    mv_song_title_official: parsed.data.songTitleOfficial || null,
+    mv_composer: parsed.data.composer || null,
+    mv_lyricist: parsed.data.lyricist || null,
+    mv_arranger: parsed.data.arranger || null,
+    mv_song_memo: parsed.data.songMemo || null,
+    mv_lyrics: parsed.data.lyrics || null,
     package_id: parsed.data.packageId ?? null,
     amount_krw: amountKrw,
     mv_base_selected: parsed.data.mvBaseSelected ?? true,
@@ -369,12 +771,62 @@ export async function saveMvSubmissionAction(
     payment_status: shouldRequestPayment ? "PAYMENT_PENDING" : "UNPAID",
   };
 
-  const { error: submissionError } = await db
-    .from("submissions")
-    .upsert(submissionPayload, { onConflict: "id" });
+  let submissionError = (await upsertWithColumnFallback(db, submissionPayload))
+    .error;
 
   if (submissionError) {
-    return { error: "접수 저장에 실패했습니다." };
+    if (db !== adminDb) {
+      const { data: existingSubmission } = await adminDb
+        .from("submissions")
+        .select("id, user_id, guest_token")
+        .eq("id", parsed.data.submissionId)
+        .maybeSingle();
+
+      if (
+        existingSubmission?.user_id &&
+        user &&
+        existingSubmission.user_id !== user.id
+      ) {
+        return {
+          error:
+            "권한 문제로 접수를 저장할 수 없습니다. 다시 로그인해주세요. (오류 코드: AUTH_MISMATCH)",
+        };
+      }
+
+      if (
+        !existingSubmission?.user_id &&
+        existingSubmission?.guest_token &&
+        parsed.data.guestToken &&
+        existingSubmission.guest_token !== parsed.data.guestToken
+      ) {
+        return {
+          error:
+            "권한 문제로 접수를 저장할 수 없습니다. 다시 로그인해주세요. (오류 코드: AUTH_MISMATCH)",
+        };
+      }
+
+      const fallbackResult = await upsertWithColumnFallback(adminDb, {
+        ...submissionPayload,
+        user_id: user?.id ?? null,
+      });
+      const fallbackError = fallbackResult.error;
+
+      if (fallbackError) {
+        console.error("MV submission upsert failed", fallbackError);
+        return { error: formatSubmissionError(fallbackError) };
+      }
+
+      db = adminDb;
+      submissionError = null;
+    } else {
+      console.error("MV submission upsert failed", submissionError);
+      return { error: formatSubmissionError(submissionError) };
+    }
+  }
+
+  if (submissionError) {
+    console.error("MV submission upsert failed", submissionError);
+    return { error: formatSubmissionError(submissionError) };
   }
 
   await db
@@ -394,9 +846,12 @@ export async function saveMvSubmissionAction(
     })) ?? [];
 
   if (fileRows.length > 0) {
-    const { error: fileError } = await db
-      .from("submission_files")
-      .insert(fileRows);
+    const fileResult = await insertWithColumnFallback(
+      db,
+      "submission_files",
+      fileRows,
+    );
+    const fileError = fileResult.error;
 
     if (fileError) {
       return { error: "파일 정보를 저장할 수 없습니다." };

@@ -6,7 +6,7 @@ export const APP_CONFIG = {
     process.env.NEXT_PUBLIC_SUPPORT_HOURS ?? "09:00 ~ 18:00 (주말/공휴일 휴무)",
   bankName: process.env.NEXT_PUBLIC_BANK_NAME ?? "국민은행",
   bankAccount: process.env.NEXT_PUBLIC_BANK_ACCOUNT ?? "351901-04-227106",
-  bankHolder: process.env.NEXT_PUBLIC_BANK_HOLDER ?? "송재현(영모에버)",
+  bankHolder: process.env.NEXT_PUBLIC_BANK_HOLDER ?? "송재현(영포에버)",
   bankLink: process.env.NEXT_PUBLIC_BANK_LINK ?? "",
   businessName: process.env.NEXT_PUBLIC_BUSINESS_NAME ?? "온사이드",
   businessRep: process.env.NEXT_PUBLIC_BUSINESS_REP ?? "정근영",
@@ -21,5 +21,10 @@ export const APP_CONFIG = {
   hostingProvider:
     process.env.NEXT_PUBLIC_HOSTING_PROVIDER ?? "(주)가비아인터넷서비스",
   preReviewPriceKrw: Number(process.env.NEXT_PUBLIC_PRE_REVIEW_PRICE ?? "0"),
-  uploadMaxMb: Number(process.env.NEXT_PUBLIC_UPLOAD_MAX_MB ?? "200"),
+  uploadMaxMb: Number(
+    process.env.NEXT_PUBLIC_UPLOAD_MAX_MB ??
+      process.env.NEXT_PUBLIC_AUDIO_UPLOAD_MAX_MB ??
+      "1024",
+  ),
+  karaokeFeeKrw: Number(process.env.NEXT_PUBLIC_KARAOKE_FEE ?? "50000"),
 };

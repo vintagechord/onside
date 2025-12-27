@@ -47,7 +47,7 @@ export default async function AdminSubmissionDetailPage({
   const { data: submission } = await supabase
     .from("submissions")
     .select(
-      "id, title, artist_name, status, payment_status, payment_method, amount_krw, mv_base_selected, pre_review_requested, karaoke_requested, bank_depositor_name, admin_memo, created_at, updated_at, type, guest_name, guest_company, guest_email, guest_phone, package:packages ( name )",
+      "id, title, artist_name, status, payment_status, payment_method, amount_krw, mv_base_selected, pre_review_requested, karaoke_requested, bank_depositor_name, admin_memo, mv_rating_file_path, created_at, updated_at, type, guest_name, guest_company, guest_email, guest_phone, package:packages ( name )",
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -55,6 +55,11 @@ export default async function AdminSubmissionDetailPage({
   if (!submission) {
     notFound();
   }
+  const packageInfo = Array.isArray(submission.package)
+    ? submission.package[0]
+    : submission.package;
+  const isMvSubmission =
+    submission.type === "MV_BROADCAST" || submission.type === "MV_DISTRIBUTION";
 
   const { data: stationReviews } = await supabase
     .from("station_reviews")
@@ -105,7 +110,7 @@ export default async function AdminSubmissionDetailPage({
               <div>
                 <p className="text-xs text-muted-foreground">패키지</p>
                 <p className="mt-1 font-semibold text-foreground">
-                  {submission.package?.name ?? "-"}
+                  {packageInfo?.name ?? "-"}
                 </p>
               </div>
               <div>
@@ -265,6 +270,22 @@ export default async function AdminSubmissionDetailPage({
                   </option>
                 ))}
               </select>
+              {isMvSubmission && (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    등급분류 파일 경로
+                  </label>
+                  <input
+                    name="mvRatingFilePath"
+                    defaultValue={submission.mv_rating_file_path ?? ""}
+                    placeholder="submissions/ratings/..."
+                    className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    스토리지 submissions 버킷에 업로드한 파일 경로를 입력하세요.
+                  </p>
+                </div>
+              )}
               <textarea
                 name="adminMemo"
                 defaultValue={submission.admin_memo ?? ""}
@@ -316,46 +337,51 @@ export default async function AdminSubmissionDetailPage({
         </p>
         <div className="mt-4 space-y-4">
           {stationReviews && stationReviews.length > 0 ? (
-            stationReviews.map((review) => (
-              <form
-                key={review.id}
-                action={updateStationReviewFormAction}
-                className="grid gap-4 rounded-2xl border border-border/60 bg-background/80 p-4 md:grid-cols-[1.2fr_1fr_1.2fr_auto]"
-              >
-                <input type="hidden" name="reviewId" value={review.id} />
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {review.station?.name ?? "-"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {review.station?.code ?? ""}
-                  </p>
-                </div>
-                <select
-                  name="status"
-                  defaultValue={review.status}
-                  className="rounded-2xl border border-border/70 bg-background px-3 py-2 text-xs"
+            stationReviews.map((review) => {
+              const stationInfo = Array.isArray(review.station)
+                ? review.station[0]
+                : review.station;
+              return (
+                <form
+                  key={review.id}
+                  action={updateStationReviewFormAction}
+                  className="grid gap-4 rounded-2xl border border-border/60 bg-background/80 p-4 md:grid-cols-[1.2fr_1fr_1.2fr_auto]"
                 >
-                  {stationStatuses.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  name="resultNote"
-                  defaultValue={review.result_note ?? ""}
-                  placeholder="결과 메모"
-                  className="rounded-2xl border border-border/70 bg-background px-3 py-2 text-xs"
-                />
-                <button
-                  type="submit"
-                  className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background"
-                >
-                  저장
-                </button>
-              </form>
-            ))
+                  <input type="hidden" name="reviewId" value={review.id} />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {stationInfo?.name ?? "-"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {stationInfo?.code ?? ""}
+                    </p>
+                  </div>
+                  <select
+                    name="status"
+                    defaultValue={review.status}
+                    className="rounded-2xl border border-border/70 bg-background px-3 py-2 text-xs"
+                  >
+                    {stationStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    name="resultNote"
+                    defaultValue={review.result_note ?? ""}
+                    placeholder="결과 메모"
+                    className="rounded-2xl border border-border/70 bg-background px-3 py-2 text-xs"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background"
+                  >
+                    저장
+                  </button>
+                </form>
+              );
+            })
           ) : (
             <div className="rounded-2xl border border-dashed border-border/60 bg-background/70 px-4 py-6 text-xs text-muted-foreground">
               방송국 진행 정보가 없습니다.

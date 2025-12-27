@@ -13,17 +13,37 @@ export default async function SubmissionDetailPage({
   params: { id: string };
 }) {
   const supabase = await createServerSupabase();
-  const { data: submission } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const baseSelect =
+    "id, user_id, title, artist_name, type, status, payment_status, amount_krw, created_at, updated_at, package:packages ( name, station_count, price_krw )";
+  const fullSelect =
+    "id, user_id, title, artist_name, type, status, payment_status, payment_method, amount_krw, mv_rating_file_path, created_at, updated_at, package:packages ( name, station_count, price_krw )";
+
+  const { data: submission, error: submissionError } = await supabase
     .from("submissions")
-    .select(
-      "id, title, artist_name, status, payment_status, payment_method, amount_krw, created_at, updated_at, package:packages ( name, station_count, price_krw )",
-    )
+    .select(fullSelect)
     .eq("id", params.id)
     .maybeSingle();
 
-  if (!submission) {
+  const { data: fallbackSubmission } =
+    !submission && submissionError?.code === "PGRST204"
+      ? await supabase
+          .from("submissions")
+          .select(baseSelect)
+          .eq("id", params.id)
+          .maybeSingle()
+      : { data: null };
+
+  const resolvedSubmission = submission ?? fallbackSubmission;
+
+  if (!resolvedSubmission) {
     notFound();
   }
+  const packageInfo = Array.isArray(resolvedSubmission.package)
+    ? resolvedSubmission.package[0]
+    : resolvedSubmission.package;
 
   const { data: events } = await supabase
     .from("submission_events")
@@ -38,13 +58,43 @@ export default async function SubmissionDetailPage({
     )
     .eq("submission_id", params.id)
     .order("updated_at", { ascending: false });
+  const normalizedStationReviews =
+    stationReviews?.map((review) => ({
+      ...review,
+      station: Array.isArray(review.station) ? review.station[0] : review.station,
+    })) ?? [];
+
+  const isOwner = Boolean(user && resolvedSubmission.user_id === user.id);
+  let creditBalance = 0;
+  let promotion = null;
+
+  if (isOwner && user) {
+    const { data: creditRow } = await supabase
+      .from("karaoke_credits")
+      .select("balance")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    creditBalance = creditRow?.balance ?? 0;
+
+    const { data: promotionRow } = await supabase
+      .from("karaoke_promotions")
+      .select(
+        "id, status, credits_balance, credits_required, tj_enabled, ky_enabled, reference_url",
+      )
+      .eq("submission_id", resolvedSubmission.id)
+      .maybeSingle();
+    promotion = promotionRow ?? null;
+  }
 
   return (
     <SubmissionDetailClient
       submissionId={params.id}
-      initialSubmission={submission}
+      initialSubmission={{ ...resolvedSubmission, package: packageInfo ?? null }}
       initialEvents={events ?? []}
-      initialStationReviews={stationReviews ?? []}
+      initialStationReviews={normalizedStationReviews}
+      creditBalance={creditBalance}
+      promotion={promotion}
+      canManagePromotion={isOwner}
     />
   );
 }

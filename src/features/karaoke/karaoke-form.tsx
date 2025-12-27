@@ -3,9 +3,13 @@
 import * as React from "react";
 
 import { APP_CONFIG } from "@/lib/config";
+import { formatCurrency } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
-import { createKaraokeRequestAction, type KaraokeActionState } from "./actions";
+import {
+  createKaraokeRequestAction,
+  type KaraokeActionState,
+} from "./actions";
 
 type UploadState = {
   name: string;
@@ -25,6 +29,12 @@ export function KaraokeForm({ userId }: { userId?: string | null }) {
   const [guestName, setGuestName] = React.useState("");
   const [guestEmail, setGuestEmail] = React.useState("");
   const [notes, setNotes] = React.useState("");
+  const [paymentMethod, setPaymentMethod] = React.useState<"CARD" | "BANK">(
+    "BANK",
+  );
+  const [bankDepositorName, setBankDepositorName] = React.useState("");
+  const [tjRequested, setTjRequested] = React.useState(true);
+  const [kyRequested, setKyRequested] = React.useState(true);
   const [file, setFile] = React.useState<File | null>(null);
   const [upload, setUpload] = React.useState<UploadState>({
     name: "",
@@ -33,8 +43,8 @@ export function KaraokeForm({ userId }: { userId?: string | null }) {
   });
   const [notice, setNotice] = React.useState<KaraokeActionState>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const guestTokenRef = React.useRef<string>();
-  const uploadIdRef = React.useRef<string>();
+  const guestTokenRef = React.useRef<string | null>(null);
+  const uploadIdRef = React.useRef<string | null>(null);
 
   if (!guestTokenRef.current) {
     guestTokenRef.current = crypto.randomUUID();
@@ -125,6 +135,14 @@ export function KaraokeForm({ userId }: { userId?: string | null }) {
       setNotice({ error: "담당자명과 이메일을 입력해주세요." });
       return;
     }
+    if (!tjRequested && !kyRequested) {
+      setNotice({ error: "등록 요청 방송사를 선택해주세요." });
+      return;
+    }
+    if (paymentMethod === "BANK" && !bankDepositorName.trim()) {
+      setNotice({ error: "입금자명을 입력해주세요." });
+      return;
+    }
 
     setIsSubmitting(true);
     setNotice({});
@@ -157,6 +175,11 @@ export function KaraokeForm({ userId }: { userId?: string | null }) {
         contact,
         notes: notes || undefined,
         filePath,
+        paymentMethod,
+        bankDepositorName:
+          paymentMethod === "BANK" ? bankDepositorName.trim() : undefined,
+        tjRequested,
+        kyRequested,
         guestName: isGuest ? guestName : undefined,
         guestEmail: isGuest ? guestEmail : undefined,
         guestPhone: isGuest ? contact : undefined,
@@ -174,6 +197,10 @@ export function KaraokeForm({ userId }: { userId?: string | null }) {
       setGuestName("");
       setGuestEmail("");
       setNotes("");
+      setPaymentMethod("BANK");
+      setBankDepositorName("");
+      setTjRequested(true);
+      setKyRequested(true);
       setFile(null);
       setUpload({ name: "", progress: 0, status: "idle" });
     } catch {
@@ -184,130 +211,258 @@ export function KaraokeForm({ userId }: { userId?: string | null }) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2">
-        {isGuest && (
-          <>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                담당자명
-              </label>
-              <input
-                value={guestName}
-                onChange={(event) => setGuestName(event.target.value)}
-                className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                이메일
-              </label>
-              <input
-                type="email"
-                value={guestEmail}
-                onChange={(event) => setGuestEmail(event.target.value)}
-                className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
-              />
-            </div>
-          </>
-        )}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            곡명
-          </label>
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            아티스트
-          </label>
-          <input
-            value={artist}
-            onChange={(event) => setArtist(event.target.value)}
-            className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
-          />
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            연락처
-          </label>
-          <input
-            value={contact}
-            onChange={(event) => setContact(event.target.value)}
-            className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
-          />
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            요청 사항
-          </label>
-          <textarea
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            className="h-24 w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
-          />
-        </div>
+    <div className="space-y-8">
+      <div className="rounded-[28px] border border-border/60 bg-card/80 p-6 text-sm text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+          노래방 등록 신청하기
+        </p>
+        <p className="mt-3 text-sm">
+          태진/금영 등록을 온사이드가 대행합니다. 신청 후 진행상황 탭에서
+          단계별 진행을 확인할 수 있습니다.
+        </p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          기본 신청 비용 {formatCurrency(APP_CONFIG.karaokeFeeKrw)}원
+        </p>
       </div>
 
-      <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-          파일/링크
-        </p>
-        <p className="mt-2 text-xs text-muted-foreground">
-          음원 또는 참고 자료를 업로드하세요. (선택)
-        </p>
-        <input
-          type="file"
-          onChange={onFileChange}
-          className="mt-4 w-full rounded-2xl border border-dashed border-border/70 bg-background/60 px-4 py-6 text-sm text-muted-foreground"
-        />
-        {upload.name && (
-          <div className="mt-4 rounded-2xl border border-border/60 bg-background/70 px-4 py-3 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-foreground">{upload.name}</span>
-              <span className="text-muted-foreground">
-                {upload.status === "done"
-                  ? "완료"
-                  : upload.status === "uploading"
-                    ? "업로드 중"
-                    : upload.status === "error"
-                      ? "실패"
-                      : "대기"}
-              </span>
-            </div>
-            <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
-              <div
-                className="h-1.5 rounded-full bg-foreground transition-all"
-                style={{ width: `${upload.progress}%` }}
+      <div className="grid gap-6">
+        <div className="grid gap-4 md:grid-cols-2">
+          {isGuest && (
+            <>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  담당자명
+                </label>
+                <input
+                  value={guestName}
+                  onChange={(event) => setGuestName(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  이메일
+                </label>
+                <input
+                  type="email"
+                  value={guestEmail}
+                  onChange={(event) => setGuestEmail(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+            </>
+          )}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              곡명
+            </label>
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              아티스트
+            </label>
+            <input
+              value={artist}
+              onChange={(event) => setArtist(event.target.value)}
+              className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              연락처
+            </label>
+            <input
+              value={contact}
+              onChange={(event) => setContact(event.target.value)}
+              className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              요청 사항
+            </label>
+            <textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              className="h-24 w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+            등록 요청 방송사
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
+            <label className="flex items-center gap-2 rounded-full border border-border/70 px-4 py-2">
+              <input
+                type="checkbox"
+                checked={tjRequested}
+                onChange={() => setTjRequested((prev) => !prev)}
+                className="h-4 w-4 rounded border-border"
               />
+              태진
+            </label>
+            <label className="flex items-center gap-2 rounded-full border border-border/70 px-4 py-2">
+              <input
+                type="checkbox"
+                checked={kyRequested}
+                onChange={() => setKyRequested((prev) => !prev)}
+                className="h-4 w-4 rounded border-border"
+              />
+              금영
+            </label>
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+            파일/링크
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            음원 또는 참고 자료를 업로드하세요. (선택)
+          </p>
+          <input
+            type="file"
+            onChange={onFileChange}
+            className="mt-4 w-full rounded-2xl border border-dashed border-border/70 bg-background/60 px-4 py-6 text-sm text-muted-foreground"
+          />
+          {upload.name && (
+            <div className="mt-4 rounded-2xl border border-border/60 bg-background/70 px-4 py-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-foreground">
+                  {upload.name}
+                </span>
+                <span className="text-muted-foreground">
+                  {upload.status === "done"
+                    ? "완료"
+                    : upload.status === "uploading"
+                      ? "업로드 중"
+                      : upload.status === "error"
+                        ? "실패"
+                        : "대기"}
+                </span>
+              </div>
+              <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
+                <div
+                  className="h-1.5 rounded-full bg-foreground transition-all"
+                  style={{ width: `${upload.progress}%` }}
+                />
+              </div>
             </div>
+          )}
+        </div>
+
+        <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+            결제 방식 선택
+          </p>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setPaymentMethod("CARD")}
+              className={`rounded-2xl border p-4 text-left transition ${
+                paymentMethod === "CARD"
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border/60 bg-background text-foreground hover:border-foreground"
+              }`}
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-70">
+                Card
+              </p>
+              <p className="mt-2 text-sm font-semibold">카드 결제</p>
+              <p className="mt-2 text-xs opacity-80">
+                결제 모듈 연동 후 자동화 예정입니다.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMethod("BANK")}
+              className={`rounded-2xl border p-4 text-left transition ${
+                paymentMethod === "BANK"
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border/60 bg-background text-foreground hover:border-foreground"
+              }`}
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-70">
+                Bank
+              </p>
+              <p className="mt-2 text-sm font-semibold">무통장 입금</p>
+              <p className="mt-2 text-xs opacity-80">
+                입금 확인 후 요청이 진행됩니다.
+              </p>
+            </button>
+          </div>
+
+          {paymentMethod === "BANK" && (
+            <div className="mt-4 rounded-2xl border border-border/60 bg-background/70 p-4 text-xs text-muted-foreground">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.2em]">
+                    은행
+                  </p>
+                  <p className="mt-1 font-semibold text-foreground">
+                    {APP_CONFIG.bankName}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.2em]">
+                    계좌번호
+                  </p>
+                  <p className="mt-1 font-semibold text-foreground">
+                    {APP_CONFIG.bankAccount}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.2em]">
+                    예금주
+                  </p>
+                  <p className="mt-1 font-semibold text-foreground">
+                    {APP_CONFIG.bankHolder}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                <label className="text-[11px] font-semibold uppercase tracking-[0.2em]">
+                  입금자명
+                </label>
+                <input
+                  value={bankDepositorName}
+                  onChange={(event) =>
+                    setBankDepositorName(event.target.value)
+                  }
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {notice.error && (
+          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-600">
+            {notice.error}
           </div>
         )}
+        {notice.message && (
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-600">
+            {notice.message}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+          className="rounded-full bg-foreground px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 hover:bg-foreground/90 disabled:cursor-not-allowed disabled:bg-muted"
+        >
+          등록 요청하기
+        </button>
       </div>
-
-      {notice.error && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-600">
-          {notice.error}
-        </div>
-      )}
-      {notice.message && (
-        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-600">
-          {notice.message}
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={isSubmitting}
-        className="rounded-full bg-foreground px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 hover:bg-foreground/90 disabled:cursor-not-allowed disabled:bg-muted"
-      >
-        등록 요청하기
-      </button>
     </div>
   );
 }

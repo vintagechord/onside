@@ -53,10 +53,10 @@ export default function AdminPage() {
             Karaoke
           </p>
           <h2 className="mt-3 text-xl font-semibold text-foreground">
-            노래방 요청 관리
+            노래방 등록 관리
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            노래방 등록 요청 접수와 상태를 관리합니다.
+            노래방 등록 접수와 상태를 관리합니다.
           </p>
         </Link>
         <Link

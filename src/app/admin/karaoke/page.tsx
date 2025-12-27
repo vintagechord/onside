@@ -1,12 +1,17 @@
-import { updateKaraokeStatusFormAction } from "@/features/karaoke/actions";
+import {
+  updateKaraokeStatusFormAction,
+  updateKaraokePromotionRecommendationStatusFormAction,
+} from "@/features/karaoke/actions";
 import { formatDateTime } from "@/lib/format";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export const metadata = {
-  title: "노래방 요청 관리",
+  title: "노래방 등록 관리",
 };
 
 const statusOptions = ["REQUESTED", "IN_REVIEW", "COMPLETED"];
+const paymentStatusOptions = ["UNPAID", "PAYMENT_PENDING", "PAID", "REFUNDED"];
+const recommendationStatusOptions = ["PENDING", "APPROVED", "REJECTED"];
 
 export default async function AdminKaraokePage({
   searchParams,
@@ -17,7 +22,7 @@ export default async function AdminKaraokePage({
   let query = supabase
     .from("karaoke_requests")
     .select(
-      "id, title, artist, contact, notes, status, created_at, guest_name, guest_email, guest_phone",
+      "id, title, artist, contact, notes, status, created_at, guest_name, guest_email, guest_phone, payment_status, payment_method, amount_krw, bank_depositor_name, tj_requested, ky_requested",
     )
     .order("created_at", { ascending: false });
 
@@ -27,13 +32,21 @@ export default async function AdminKaraokePage({
 
   const { data: requests } = await query;
 
+  const { data: recommendations } = await supabase
+    .from("karaoke_promotion_recommendations")
+    .select(
+      "id, status, created_at, proof_path, recommender_user_id, promotion:karaoke_promotions ( id, credits_balance, submission:submissions ( title, artist_name ) )",
+    )
+    .order("created_at", { ascending: false })
+    .limit(30);
+
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-12">
       <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
         Admin
       </p>
       <h1 className="font-display mt-2 text-3xl text-foreground">
-        노래방 등록 요청 관리
+        노래방 등록 관리
       </h1>
 
       <form className="mt-6 flex flex-wrap items-center gap-3 rounded-[28px] border border-border/60 bg-card/80 p-4">
@@ -73,6 +86,20 @@ export default async function AdminKaraokePage({
                     {request.artist ?? "-"} · {request.contact}
                     {request.guest_name ? " · 비회원" : ""}
                   </p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    결제: {request.payment_status} · 방식:{" "}
+                    {request.payment_method} · 금액:{" "}
+                    {request.amount_krw?.toLocaleString() ?? "-"}원
+                  </p>
+                  {request.bank_depositor_name && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      입금자명: {request.bank_depositor_name}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    태진 {request.tj_requested ? "요청" : "미요청"} · 금영{" "}
+                    {request.ky_requested ? "요청" : "미요청"}
+                  </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {formatDateTime(request.created_at)}
@@ -103,6 +130,17 @@ export default async function AdminKaraokePage({
                     </option>
                   ))}
                 </select>
+                <select
+                  name="paymentStatus"
+                  defaultValue={request.payment_status}
+                  className="rounded-2xl border border-border/70 bg-background px-4 py-2 text-xs"
+                >
+                  {paymentStatusOptions.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="submit"
                   className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background"
@@ -117,6 +155,89 @@ export default async function AdminKaraokePage({
             요청이 없습니다.
           </div>
         )}
+      </div>
+
+      <div className="mt-10">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+          추천 관리
+        </p>
+        <h2 className="font-display mt-2 text-2xl text-foreground">
+          추천 인증 관리
+        </h2>
+        <div className="mt-6 space-y-4">
+          {recommendations && recommendations.length > 0 ? (
+            recommendations.map((recommendation) => (
+              <div
+                key={recommendation.id}
+                className="rounded-2xl border border-border/60 bg-card/80 p-4"
+              >
+                {(() => {
+                  const promotion = Array.isArray(recommendation.promotion)
+                    ? recommendation.promotion[0]
+                    : recommendation.promotion;
+                  const submission = Array.isArray(promotion?.submission)
+                    ? promotion?.submission[0]
+                    : promotion?.submission;
+                  return (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {submission?.title ?? "제목 미입력"} ·{" "}
+                      {submission?.artist_name ?? "-"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      추천자: {recommendation.recommender_user_id ?? "-"}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      노출 크레딧: {promotion?.credits_balance ?? "-"}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateTime(recommendation.created_at)}
+                  </p>
+                </div>
+              );
+            })()}
+                {recommendation.proof_path && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    인증샷: {recommendation.proof_path}
+                  </p>
+                )}
+                <form
+                  action={updateKaraokePromotionRecommendationStatusFormAction}
+                  className="mt-4 flex flex-wrap items-center gap-3"
+                >
+                  <input
+                    type="hidden"
+                    name="recommendationId"
+                    value={recommendation.id}
+                  />
+                  <select
+                    name="status"
+                    defaultValue={recommendation.status}
+                    className="rounded-2xl border border-border/70 bg-background px-4 py-2 text-xs"
+                  >
+                    {recommendationStatusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="submit"
+                    className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background"
+                  >
+                    상태 저장
+                  </button>
+                </form>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-background/70 px-4 py-6 text-xs text-muted-foreground">
+              추천 요청이 없습니다.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

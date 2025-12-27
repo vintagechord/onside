@@ -19,17 +19,52 @@ export default async function TrackDetailPage({
   }
 
   const admin = createAdminClient();
-  const { data: submission } = await admin
-    .from("submissions")
-    .select(
-      "id, title, artist_name, status, payment_status, payment_method, amount_krw, created_at, updated_at, package:packages ( name, station_count, price_krw )",
-    )
-    .eq("guest_token", token)
-    .maybeSingle();
+  const baseSelect =
+    "id, title, artist_name, type, status, payment_status, amount_krw, created_at, updated_at, package:packages ( name, station_count, price_krw )";
+  const fullSelect =
+    "id, title, artist_name, type, status, payment_status, payment_method, amount_krw, mv_rating_file_path, created_at, updated_at, package:packages ( name, station_count, price_krw )";
+
+  const fetchSubmission = async (column: "guest_token" | "id", value: string) => {
+    const { data, error } = await admin
+      .from("submissions")
+      .select(fullSelect)
+      .eq(column, value)
+      .maybeSingle();
+
+    if (!error) {
+      return data;
+    }
+
+    if (error.code === "PGRST204") {
+      const { data: fallbackData } = await admin
+        .from("submissions")
+        .select(baseSelect)
+        .eq(column, value)
+        .maybeSingle();
+      return fallbackData ?? null;
+    }
+
+    return null;
+  };
+
+  let submission = await fetchSubmission("guest_token", token);
+
+  if (!submission) {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        token,
+      );
+    if (isUuid) {
+      submission = await fetchSubmission("id", token);
+    }
+  }
 
   if (!submission) {
     notFound();
   }
+  const packageInfo = Array.isArray(submission.package)
+    ? submission.package[0]
+    : submission.package;
 
   const { data: events } = await admin
     .from("submission_events")
@@ -44,6 +79,11 @@ export default async function TrackDetailPage({
     )
     .eq("submission_id", submission.id)
     .order("updated_at", { ascending: false });
+  const normalizedStationReviews =
+    stationReviews?.map((review) => ({
+      ...review,
+      station: Array.isArray(review.station) ? review.station[0] : review.station,
+    })) ?? [];
 
   return (
     <>
@@ -55,10 +95,11 @@ export default async function TrackDetailPage({
       </div>
       <SubmissionDetailClient
         submissionId={submission.id}
-        initialSubmission={submission}
+        initialSubmission={{ ...submission, package: packageInfo ?? null }}
         initialEvents={events ?? []}
-        initialStationReviews={stationReviews ?? []}
+        initialStationReviews={normalizedStationReviews}
         enableRealtime={false}
+        guestToken={token}
       />
     </>
   );

@@ -6,7 +6,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const uploadSchema = z.object({
   submissionId: z.string().uuid(),
   guestToken: z.string().min(8),
-  kind: z.enum(["audio", "video", "karaoke", "lyrics", "etc"]),
+  kind: z.enum([
+    "audio",
+    "video",
+    "karaoke",
+    "karaoke_vote",
+    "karaoke_recommendation",
+    "lyrics",
+    "etc",
+  ]),
   fileName: z.string().min(1),
 });
 

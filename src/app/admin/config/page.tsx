@@ -39,11 +39,20 @@ export default async function AdminConfigPage() {
           </h2>
           <div className="space-y-4">
             {packages?.map((pkg) => {
-              const stationCodes =
-                pkg.package_stations
-                  ?.map((row) => row.station?.code)
-                  .filter(Boolean)
-                  .join(", ") ?? "";
+              const packageStations = (pkg.package_stations ??
+                []) as Array<{
+                station?: { code?: string | null } | Array<{ code?: string | null }>;
+              }>;
+              const stationCodes = packageStations
+                .map((row) => {
+                  if (!row.station) return null;
+                  if (Array.isArray(row.station)) {
+                    return row.station[0]?.code ?? null;
+                  }
+                  return row.station.code ?? null;
+                })
+                .filter(Boolean)
+                .join(", ");
 
               return (
                 <div

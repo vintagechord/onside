@@ -27,9 +27,10 @@ export default async function AlbumSubmissionPage() {
       priceKrw: pkg.price_krw,
       description: pkg.description,
       stations:
-        pkg.package_stations
-          ?.map((row) => row.station)
-          .filter(Boolean) ?? [],
+        pkg.package_stations?.flatMap((row) => {
+          if (!row.station) return [];
+          return Array.isArray(row.station) ? row.station : [row.station];
+        }) ?? [],
     })) ?? [];
 
   return (

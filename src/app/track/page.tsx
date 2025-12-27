@@ -1,36 +1,73 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { TrackLookupForm } from "@/features/submissions/track-lookup-form";
+import { TrackLookupForm } from "@/features/track/track-lookup-form";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 export const metadata = {
-  title: "접수 진행 상황 조회",
+  title: "진행상황",
 };
 
-export default function TrackPage() {
+export default async function TrackPage() {
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isLoggedIn = Boolean(user);
+
+  if (user) {
+    const { data: submission } = await supabase
+      .from("submissions")
+      .select("id")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (submission?.id) {
+      redirect(`/dashboard/submissions/${submission.id}`);
+    }
+  }
+
   return (
-    <div className="relative mx-auto flex w-full max-w-5xl flex-1 items-center justify-center px-6 py-16">
-      <div className="absolute left-10 top-8 h-40 w-40 rounded-full bg-amber-300/30 blur-[110px] dark:bg-amber-400/20" />
-      <div className="grid w-full max-w-3xl gap-10 rounded-[32px] border border-border/60 bg-card/80 p-10 shadow-[0_30px_100px_rgba(15,23,42,0.12)] lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-            Track Status
-          </p>
-          <h1 className="font-display text-3xl text-foreground">
-            접수 진행 상황 조회
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            비회원 접수 시 발급된 조회 코드를 입력하면 진행 상태를 확인할 수
-            있습니다.
-          </p>
-          <div className="rounded-2xl border border-dashed border-border/70 bg-background/70 p-4 text-xs text-muted-foreground">
-            로그인 사용자는{" "}
-            <Link href="/dashboard" className="font-semibold text-foreground">
-              마이페이지
+    <div className="mx-auto w-full max-w-3xl px-6 py-12">
+      <div className="rounded-[32px] border border-border/60 bg-card/80 p-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+          진행상황 조회
+        </p>
+        <h1 className="font-display mt-3 text-3xl text-foreground">
+          {isLoggedIn ? "접수된 심의가 없습니다" : "비회원 진행상황 확인"}
+        </h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          {isLoggedIn
+            ? "심의 접수를 진행하면 진행상황을 바로 확인할 수 있습니다."
+            : "접수 시 발급받은 조회 코드를 입력하면 진행상황을 확인할 수 있습니다."}
+        </p>
+        {isLoggedIn ? (
+          <div className="mt-6">
+            <Link
+              href="/dashboard/new"
+              className="inline-flex items-center rounded-full bg-foreground px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:bg-amber-200 hover:text-slate-900"
+            >
+              새 접수 시작 →
             </Link>
-            에서 모든 접수 내역을 확인할 수 있습니다.
           </div>
-        </div>
-        <TrackLookupForm />
+        ) : (
+          <>
+            <TrackLookupForm />
+            <div className="mt-6 text-xs text-muted-foreground">
+              회원이라면 마이페이지에서 진행상황을 바로 확인할 수 있습니다.
+            </div>
+            <div className="mt-4">
+              <Link
+                href="/login"
+                className="text-xs font-semibold text-muted-foreground transition hover:text-foreground"
+              >
+                로그인하러 가기 →
+              </Link>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

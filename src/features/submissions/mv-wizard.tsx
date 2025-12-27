@@ -34,15 +34,13 @@ type UploadResult = {
   size: number;
 };
 
-const steps = [
-  "목적 선택",
-  "신청서/파일 업로드",
-  "옵션 선택",
-  "결제하기",
-  "접수 완료",
-];
+const steps = ["목적 선택", "신청서/파일 업로드", "결제하기", "접수 완료"];
 
-const uploadMaxMb = Number(process.env.NEXT_PUBLIC_UPLOAD_MAX_MB ?? "500");
+const uploadMaxMb = Number(
+  process.env.NEXT_PUBLIC_VIDEO_UPLOAD_MAX_MB ??
+    process.env.NEXT_PUBLIC_UPLOAD_MAX_MB ??
+    "4096",
+);
 const uploadMaxBytes = uploadMaxMb * 1024 * 1024;
 const baseOnlinePrice = 30000;
 const stationPriceMap: Record<string, number> = {
@@ -74,11 +72,11 @@ const tvStationDetails: Record<string, { title: string; note: string }> = {
 };
 const onlineOptionDetails: Record<string, { title: string; note: string }> = {
   MBC: {
-    title: "MBC 입고 옵션",
+    title: "MBC 뮤직비디오 심의",
     note: "프로그램별 방송 조건에 따라 제한될 수 있습니다.",
   },
   MNET: {
-    title: "Mnet 입고 옵션",
+    title: "Mnet 뮤직비디오 심의",
     note: "방송 일정이 있는 경우에만 문의해주세요.",
   },
   ETN: {
@@ -86,6 +84,13 @@ const onlineOptionDetails: Record<string, { title: string; note: string }> = {
     note: "온라인 심의 완료 후 ETN 방송 입고 가능합니다.",
   },
 };
+
+const mvOptionToneClasses = [
+  "border-[#7ad97a] bg-[#8fe38f] text-slate-900",
+  "border-[#d8d654] bg-[#e6e35b] text-slate-900",
+  "border-[#4f56d8] bg-[#5f67f2] text-slate-900",
+  "border-[#e49adf] bg-[#f3a7f2] text-slate-900",
+];
 
 export function MvWizard({
   stations,
@@ -106,6 +111,28 @@ export function MvWizard({
   const [onlineBaseSelected, setOnlineBaseSelected] = React.useState(true);
   const [title, setTitle] = React.useState("");
   const [artistName, setArtistName] = React.useState("");
+  const [director, setDirector] = React.useState("");
+  const [leadActor, setLeadActor] = React.useState("");
+  const [storyline, setStoryline] = React.useState("");
+  const [productionCompany, setProductionCompany] = React.useState("");
+  const [agency, setAgency] = React.useState("");
+  const [albumTitle, setAlbumTitle] = React.useState("");
+  const [productionDate, setProductionDate] = React.useState("");
+  const [distributionCompany, setDistributionCompany] = React.useState("");
+  const [businessRegNo, setBusinessRegNo] = React.useState("");
+  const [usage, setUsage] = React.useState("");
+  const [desiredRating, setDesiredRating] = React.useState("");
+  const [memo, setMemo] = React.useState("");
+  const [songTitleKr, setSongTitleKr] = React.useState("");
+  const [songTitleEn, setSongTitleEn] = React.useState("");
+  const [songTitleOfficial, setSongTitleOfficial] = React.useState<
+    "" | "KR" | "EN"
+  >("");
+  const [composer, setComposer] = React.useState("");
+  const [lyricist, setLyricist] = React.useState("");
+  const [arranger, setArranger] = React.useState("");
+  const [songMemo, setSongMemo] = React.useState("");
+  const [lyrics, setLyrics] = React.useState("");
   const [releaseDate, setReleaseDate] = React.useState("");
   const [genre, setGenre] = React.useState("");
   const [runtime, setRuntime] = React.useState("");
@@ -114,8 +141,6 @@ export function MvWizard({
   const [guestCompany, setGuestCompany] = React.useState("");
   const [guestEmail, setGuestEmail] = React.useState("");
   const [guestPhone, setGuestPhone] = React.useState("");
-  const [preReviewRequested, setPreReviewRequested] = React.useState(false);
-  const [karaokeRequested, setKaraokeRequested] = React.useState(false);
   const [paymentMethod, setPaymentMethod] = React.useState<"CARD" | "BANK">(
     "BANK",
   );
@@ -127,8 +152,11 @@ export function MvWizard({
   const [isSaving, setIsSaving] = React.useState(false);
   const [notice, setNotice] = React.useState<SubmissionActionState>({});
   const [completionId, setCompletionId] = React.useState<string | null>(null);
-  const submissionIdRef = React.useRef<string>();
-  const guestTokenRef = React.useRef<string>();
+  const [completionGuestToken, setCompletionGuestToken] = React.useState<
+    string | null
+  >(null);
+  const submissionIdRef = React.useRef<string | null>(null);
+  const guestTokenRef = React.useRef<string | null>(null);
 
   if (!submissionIdRef.current) {
     submissionIdRef.current = crypto.randomUUID();
@@ -139,6 +167,8 @@ export function MvWizard({
 
   const submissionId = submissionIdRef.current;
   const guestToken = guestTokenRef.current;
+  const shouldShowGuestLookup = isGuest || Boolean(completionGuestToken);
+  const guestLookupCode = completionId ?? completionGuestToken ?? guestToken;
   const stationMap = React.useMemo(
     () => new Map(stations.map((station) => [station.code, station])),
     [stations],
@@ -160,9 +190,81 @@ export function MvWizard({
           (sum, code) => sum + (stationPriceMap[code] ?? 0),
           0,
         );
+  const uploadHintTitle =
+    mvType === "MV_DISTRIBUTION" ? "파일 포맷" : "방송국별 제출 규격";
+  const uploadChips = React.useMemo(() => {
+    const chips: string[] = [];
+
+    if (mvType === "MV_DISTRIBUTION") {
+      chips.push(
+        "확장자: 모두 가능",
+        "해상도: FHD 권장",
+        "용량: 4GB 미만",
+        "편집 완료된 최종본만 접수",
+      );
+      if (onlineOptions.includes("MBC")) {
+        chips.push("MBC: 파일 용량 2GB 미만");
+      }
+      if (onlineOptions.includes("MNET")) {
+        chips.push("Mnet: WMV 또는 MPG", "Mnet: 파일 용량 1GB 미만");
+      }
+      return chips;
+    }
+
+    if (tvStations.includes("KBS")) {
+      chips.push(
+        "KBS: 용량 1.5GB 이하",
+        "KBS: 1분 30초 편집본 제출",
+        "KBS: MOV",
+        "KBS: Apple ProRes (ProRes LT / 422)",
+      );
+    }
+    if (tvStations.includes("MBC")) {
+      chips.push(
+        "MBC: MOV",
+        "MBC: 해상도 1920x1080",
+        "MBC: 프레임 29.97",
+        "MBC: 4GB 이하",
+      );
+    }
+    if (tvStations.includes("SBS")) {
+      chips.push(
+        "SBS: MOV / MP4 / WMV",
+        "SBS: 해상도 1920x1080",
+        "SBS: 프레임 29.97",
+      );
+    }
+
+    return chips;
+  }, [mvType, onlineOptions, tvStations]);
+
+  const paymentItems = React.useMemo(() => {
+    const items: Array<{ title: string; amount: number }> = [];
+
+    if (mvType === "MV_DISTRIBUTION") {
+      if (onlineBaseSelected) {
+        items.push({ title: "일반 뮤직비디오 심의", amount: baseOnlinePrice });
+      }
+      onlineOptions.forEach((code) => {
+        const stationName = stationMap.get(code)?.name ?? code;
+        const title =
+          onlineOptionDetails[code]?.title ?? `${stationName} 옵션`;
+        items.push({ title, amount: stationPriceMap[code] ?? 0 });
+      });
+      return items;
+    }
+
+    tvStations.forEach((code) => {
+      const stationName = stationMap.get(code)?.name ?? code;
+      const title = tvStationDetails[code]?.title ?? `${stationName} 심의`;
+      items.push({ title, amount: stationPriceMap[code] ?? 0 });
+    });
+
+    return items;
+  }, [mvType, onlineBaseSelected, onlineOptions, tvStations, stationMap]);
 
   const stepLabels = (
-    <div className="grid gap-3 md:grid-cols-5">
+    <div className="grid gap-3 md:grid-cols-4">
       {steps.map((label, index) => {
         const active = index + 1 <= step;
         return (
@@ -170,7 +272,7 @@ export function MvWizard({
             key={label}
             className={`rounded-2xl border px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] ${
               active
-                ? "border-foreground bg-foreground text-background"
+                ? "border-amber-200 bg-amber-200 text-slate-900"
                 : "border-border/60 bg-background text-muted-foreground"
             }`}
           >
@@ -186,21 +288,34 @@ export function MvWizard({
 
   const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files ?? []);
-    const allowedTypes = new Set(["video/mp4", "video/quicktime"]);
+    const allowAllExtensions = mvType === "MV_DISTRIBUTION";
+    const allowedTypes = new Set([
+      "video/mp4",
+      "video/quicktime",
+      "video/x-ms-wmv",
+      "video/mpeg",
+    ]);
+    const allowedExtensions = [".mp4", ".mov", ".wmv", ".mpg", ".mpeg"];
     const filtered = selected.filter((file) => {
       if (file.size > uploadMaxBytes) {
         setNotice({ error: `파일 용량은 ${uploadMaxMb}MB 이하만 가능합니다.` });
         return false;
       }
-      if (file.type && !allowedTypes.has(file.type)) {
-        setNotice({ error: "MP4 또는 MOV 파일만 업로드할 수 있습니다." });
-        return false;
-      }
-      if (!file.type) {
-        const lowerName = file.name.toLowerCase();
-        if (!lowerName.endsWith(".mp4") && !lowerName.endsWith(".mov")) {
-          setNotice({ error: "MP4 또는 MOV 파일만 업로드할 수 있습니다." });
+      if (!allowAllExtensions) {
+        if (file.type && !allowedTypes.has(file.type)) {
+          setNotice({
+            error: "MP4/MOV/WMV/MPG 파일만 업로드할 수 있습니다.",
+          });
           return false;
+        }
+        if (!file.type) {
+          const lowerName = file.name.toLowerCase();
+          if (!allowedExtensions.some((ext) => lowerName.endsWith(ext))) {
+            setNotice({
+              error: "MP4/MOV/WMV/MPG 파일만 업로드할 수 있습니다.",
+            });
+            return false;
+          }
         }
       }
       return true;
@@ -358,8 +473,54 @@ export function MvWizard({
   };
 
   const handleSave = async (status: "DRAFT" | "SUBMITTED") => {
+    const songTitleKrValue = songTitleKr.trim();
+    const songTitleEnValue = songTitleEn.trim();
+    const songTitleOfficialValue =
+      songTitleOfficial === "KR"
+        ? songTitleKrValue
+        : songTitleOfficial === "EN"
+          ? songTitleEnValue
+          : songTitleKrValue || songTitleEnValue;
+
     if (!title || !artistName) {
       setNotice({ error: "제목과 아티스트명을 입력해주세요." });
+      return;
+    }
+    if (
+      status === "SUBMITTED" &&
+      (!director.trim() || !leadActor.trim() || !storyline.trim())
+    ) {
+      setNotice({ error: "감독, 주연, 줄거리 정보를 입력해주세요." });
+      return;
+    }
+    if (
+      status === "SUBMITTED" &&
+      (!productionCompany.trim() ||
+        !agency.trim() ||
+        !albumTitle.trim() ||
+        !productionDate ||
+        !distributionCompany.trim() ||
+        !usage.trim())
+    ) {
+      setNotice({
+        error:
+          "제작 정보(제작사/소속사/앨범명/제작 연월일/유통사/용도)를 입력해주세요.",
+      });
+      return;
+    }
+    if (
+      status === "SUBMITTED" &&
+      (!songTitleKrValue || !songTitleEnValue)
+    ) {
+      setNotice({ error: "곡명(한글/영문)을 모두 입력해주세요." });
+      return;
+    }
+    if (status === "SUBMITTED" && !songTitleOfficial) {
+      setNotice({ error: "곡명의 공식 표기를 선택해주세요." });
+      return;
+    }
+    if (status === "SUBMITTED" && !composer.trim()) {
+      setNotice({ error: "작곡자 정보를 입력해주세요." });
       return;
     }
     if (mvType === "MV_BROADCAST" && tvStations.length === 0) {
@@ -397,6 +558,27 @@ export function MvWizard({
         selectedStationIds,
         title,
         artistName,
+        director: director.trim() || undefined,
+        leadActor: leadActor.trim() || undefined,
+        storyline: storyline.trim() || undefined,
+        productionCompany: productionCompany.trim() || undefined,
+        agency: agency.trim() || undefined,
+        albumTitle: albumTitle.trim() || undefined,
+        productionDate: productionDate || undefined,
+        distributionCompany: distributionCompany.trim() || undefined,
+        businessRegNo: businessRegNo.trim() || undefined,
+        usage: usage.trim() || undefined,
+        desiredRating: desiredRating.trim() || undefined,
+        memo: memo.trim() || undefined,
+        songTitle: songTitleOfficialValue || undefined,
+        songTitleKr: songTitleKrValue || undefined,
+        songTitleEn: songTitleEnValue || undefined,
+        songTitleOfficial: songTitleOfficial || undefined,
+        composer: composer.trim() || undefined,
+        lyricist: lyricist.trim() || undefined,
+        arranger: arranger.trim() || undefined,
+        songMemo: songMemo.trim() || undefined,
+        lyrics: lyrics.trim() || undefined,
         releaseDate: releaseDate || undefined,
         genre: genre || undefined,
         mvType,
@@ -409,8 +591,6 @@ export function MvWizard({
         guestCompany: isGuest ? guestCompany : undefined,
         guestEmail: isGuest ? guestEmail : undefined,
         guestPhone: isGuest ? guestPhone : undefined,
-        preReviewRequested,
-        karaokeRequested,
         paymentMethod,
         bankDepositorName:
           status === "SUBMITTED" ? bankDepositorName.trim() : undefined,
@@ -424,8 +604,16 @@ export function MvWizard({
       }
 
       if (status === "SUBMITTED" && result.submissionId) {
+        if (typeof window !== "undefined") {
+          window.alert("심의 접수가 완료되었습니다.");
+        }
         setCompletionId(result.submissionId);
-        setStep(5);
+        if (result.guestToken) {
+          setCompletionGuestToken(result.guestToken);
+        } else if (isGuest) {
+          setCompletionGuestToken(guestToken);
+        }
+        setStep(4);
         return;
       }
 
@@ -460,14 +648,6 @@ export function MvWizard({
                 TV 송출용 심의와 유통/온라인 업로드 목적 심의를 구분합니다.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              disabled={!canProceed}
-              className="rounded-full bg-foreground px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-muted"
-            >
-              다음 단계
-            </button>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -516,10 +696,12 @@ export function MvWizard({
                 방송국별 개별 심의가 필요하며, 선택한 방송국만 접수됩니다.
               </p>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {tvStationCodes.map((code) => {
+                {tvStationCodes.map((code, index) => {
                   const active = tvStations.includes(code);
                   const stationName = stationMap.get(code)?.name ?? code;
                   const details = tvStationDetails[code];
+                  const tone =
+                    mvOptionToneClasses[index % mvOptionToneClasses.length];
                   return (
                     <button
                       key={code}
@@ -527,7 +709,7 @@ export function MvWizard({
                       onClick={() => toggleTvStation(code)}
                       className={`text-left rounded-2xl border p-4 transition ${
                         active
-                          ? "border-foreground bg-foreground text-background"
+                          ? tone
                           : "border-border/60 bg-background text-foreground hover:border-foreground"
                       }`}
                     >
@@ -561,7 +743,7 @@ export function MvWizard({
                   onClick={() => setOnlineBaseSelected((prev) => !prev)}
                   className={`text-left rounded-2xl border p-4 transition ${
                     onlineBaseSelected
-                      ? "border-foreground bg-foreground text-background"
+                      ? mvOptionToneClasses[0]
                       : "border-border/60 bg-background text-foreground hover:border-foreground"
                   }`}
                 >
@@ -576,10 +758,12 @@ export function MvWizard({
                     사용합니다.
                   </p>
                 </button>
-                {onlineOptionCodes.map((code) => {
+                {onlineOptionCodes.map((code, index) => {
                   const active = onlineOptions.includes(code);
                   const stationName = stationMap.get(code)?.name ?? code;
                   const details = onlineOptionDetails[code];
+                  const tone =
+                    mvOptionToneClasses[(index + 1) % mvOptionToneClasses.length];
                   return (
                     <button
                       key={code}
@@ -587,7 +771,7 @@ export function MvWizard({
                       onClick={() => toggleOnlineOption(code)}
                       className={`text-left rounded-2xl border p-4 transition ${
                         active
-                          ? "border-foreground bg-foreground text-background"
+                          ? tone
                           : "border-border/60 bg-background text-foreground hover:border-foreground"
                       }`}
                     >
@@ -627,6 +811,16 @@ export function MvWizard({
               카드 결제 또는 무통장 입금 모두 가능합니다.
             </p>
           </div>
+          <div className="flex justify-start">
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              disabled={!canProceed}
+              className="rounded-full bg-foreground px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 hover:bg-amber-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:bg-muted"
+            >
+              다음 단계
+            </button>
+          </div>
         </div>
       )}
 
@@ -644,32 +838,16 @@ export function MvWizard({
                 제목/러닝타임/포맷을 입력하고 영상 파일을 업로드합니다.
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="rounded-full border border-border/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-foreground transition hover:border-foreground"
-              >
-                이전 단계
-              </button>
-              <button
-                type="button"
-                onClick={() => setStep(3)}
-                className="rounded-full bg-foreground px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5"
-              >
-                다음 단계
-              </button>
-            </div>
           </div>
 
           <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-              MV 메타데이터
+              MV 기본 정보
             </p>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  MV 제목
+                  MV 제목 *
                 </label>
                 <input
                   value={title}
@@ -679,17 +857,21 @@ export function MvWizard({
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  아티스트명
+                  아티스트명 (한글/영문) *
                 </label>
                 <input
                   value={artistName}
                   onChange={(event) => setArtistName(event.target.value)}
                   className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  아티스트명과 국문표기용 영문도 써주세요. 예: 싸이(PSY) / PSY
+                  · 아이유 / IU
+                </p>
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  발매일
+                  영상 공개일자
                 </label>
                 <input
                   type="date"
@@ -730,7 +912,250 @@ export function MvWizard({
                   className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
                 />
               </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  감독 *
+                </label>
+                <input
+                  value={director}
+                  onChange={(event) => setDirector(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  주연 *
+                </label>
+                <input
+                  value={leadActor}
+                  onChange={(event) => setLeadActor(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
             </div>
+          </div>
+
+          <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              제작 정보
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  뮤직비디오 제작사 *
+                </label>
+                <input
+                  value={productionCompany}
+                  onChange={(event) => setProductionCompany(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  소속사 *
+                </label>
+                <input
+                  value={agency}
+                  onChange={(event) => setAgency(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  앨범명 *
+                </label>
+                <input
+                  value={albumTitle}
+                  onChange={(event) => setAlbumTitle(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  제작 연월일 *
+                </label>
+                <input
+                  type="date"
+                  value={productionDate}
+                  onChange={(event) => setProductionDate(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  유통사 *
+                </label>
+                <input
+                  value={distributionCompany}
+                  onChange={(event) =>
+                    setDistributionCompany(event.target.value)
+                  }
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  사업자등록번호 (선택)
+                </label>
+                <input
+                  value={businessRegNo}
+                  onChange={(event) => setBusinessRegNo(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  용도 *
+                </label>
+                <input
+                  placeholder="예: 음악사이트 기재"
+                  value={usage}
+                  onChange={(event) => setUsage(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  희망등급 (선택)
+                </label>
+                <input
+                  value={desiredRating}
+                  onChange={(event) => setDesiredRating(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  메모 (선택)
+                </label>
+                <textarea
+                  value={memo}
+                  onChange={(event) => setMemo(event.target.value)}
+                  className="h-20 w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              곡 정보
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  곡명 (한글) *
+                </label>
+                <input
+                  value={songTitleKr}
+                  onChange={(event) => setSongTitleKr(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  곡명 (영문) *
+                </label>
+                <input
+                  value={songTitleEn}
+                  onChange={(event) => setSongTitleEn(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  공식 표기 *
+                </p>
+                <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={songTitleOfficial === "KR"}
+                      onChange={() => setSongTitleOfficial("KR")}
+                      className="h-4 w-4 rounded-full border-border"
+                    />
+                    한글
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={songTitleOfficial === "EN"}
+                      onChange={() => setSongTitleOfficial("EN")}
+                      className="h-4 w-4 rounded-full border-border"
+                    />
+                    영문
+                  </label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  작곡자 *
+                </label>
+                <input
+                  value={composer}
+                  onChange={(event) => setComposer(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  작사가 (선택)
+                </label>
+                <input
+                  value={lyricist}
+                  onChange={(event) => setLyricist(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  편곡자 (선택)
+                </label>
+                <input
+                  value={arranger}
+                  onChange={(event) => setArranger(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  메모 (장르) (선택)
+                </label>
+                <input
+                  value={songMemo}
+                  onChange={(event) => setSongMemo(event.target.value)}
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              줄거리 / 작품내용 *
+            </p>
+            <textarea
+              value={storyline}
+              onChange={(event) => setStoryline(event.target.value)}
+              className="mt-4 h-32 w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              줄거리는 결말까지 작성하셔야 합니다.
+            </p>
+          </div>
+
+          <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              가사
+            </p>
+            <textarea
+              value={lyrics}
+              onChange={(event) => setLyrics(event.target.value)}
+              className="mt-4 h-32 w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              가사의 외국어는 반드시 번역이 있어야 합니다.
+            </p>
           </div>
 
           {isGuest && (
@@ -788,28 +1213,37 @@ export function MvWizard({
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
               MV 파일 업로드
             </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              허용 형식: MP4/MOV · 최대 {uploadMaxMb}MB
+            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              {uploadHintTitle}
             </p>
-            <div className="mt-4">
-              <input
-                type="file"
-                multiple
-                accept=".mp4,.mov,video/*"
-                onChange={onFileChange}
-                className="w-full rounded-2xl border border-dashed border-border/70 bg-background/60 px-4 py-6 text-sm text-muted-foreground"
-              />
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+              {uploadChips.map((chip) => (
+                <span
+                  key={chip}
+                  className="rounded-full border border-border/60 bg-background/70 px-3 py-1"
+                >
+                  {chip}
+                </span>
+              ))}
             </div>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-              <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1">
-                파일: MOV 권장
-              </span>
-              <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1">
-                해상도: 1920x1080
-              </span>
-              <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1">
-                프레임: 29.97fps
-              </span>
+            <div className="mt-4">
+              <label className="block">
+                <span className="sr-only">파일 첨부</span>
+                <input
+                  type="file"
+                  multiple
+                  accept={
+                    mvType === "MV_DISTRIBUTION"
+                      ? undefined
+                      : ".mp4,.mov,.wmv,.mpg,.mpeg,video/*"
+                  }
+                  onChange={onFileChange}
+                  className="hidden"
+                />
+                <span className="flex w-full items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background/60 px-4 py-6 text-sm font-semibold text-foreground transition hover:border-foreground">
+                  파일 첨부
+                </span>
+              </label>
             </div>
             <div className="mt-4 space-y-3">
               {uploads.map((upload) => (
@@ -840,7 +1274,7 @@ export function MvWizard({
                 </div>
               ))}
               {uploads.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-border/60 bg-background/70 px-4 py-6 text-xs text-muted-foreground">
+                <div className="rounded-2xl border border-dashed border-border/60 bg-background/70 px-4 py-6 text-center text-xs text-muted-foreground">
                   아직 선택된 파일이 없습니다.
                 </div>
               )}
@@ -859,6 +1293,14 @@ export function MvWizard({
           )}
 
           <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              disabled={isSaving}
+              className="rounded-full border border-border/70 px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-foreground transition hover:border-amber-200 hover:text-slate-900 disabled:cursor-not-allowed"
+            >
+              이전 단계
+            </button>
             {!isGuest && (
               <button
                 type="button"
@@ -872,7 +1314,7 @@ export function MvWizard({
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="rounded-full bg-foreground px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 hover:bg-foreground/90"
+              className="rounded-full bg-foreground px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 hover:bg-amber-200 hover:text-slate-900"
             >
               다음 단계
             </button>
@@ -888,100 +1330,41 @@ export function MvWizard({
                 STEP 03
               </p>
               <h2 className="font-display mt-2 text-2xl text-foreground">
-                추가 옵션을 선택하세요.
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                사전 검토 및 노래방 등록 요청을 선택할 수 있습니다.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="rounded-full border border-border/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-foreground transition hover:border-foreground"
-              >
-                이전 단계
-              </button>
-              <button
-                type="button"
-                onClick={() => setStep(4)}
-                className="rounded-full bg-foreground px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5"
-              >
-                다음 단계
-              </button>
-            </div>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => setPreReviewRequested((prev) => !prev)}
-              className={`rounded-[28px] border p-6 text-left transition ${
-                preReviewRequested
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-border/60 bg-card/80 text-foreground hover:border-foreground"
-              }`}
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] opacity-70">
-                Pre-Review
-              </p>
-              <h3 className="mt-2 text-lg font-semibold">
-                방송국 접수 전 사전 검토
-              </h3>
-              <p className="mt-2 text-xs opacity-70">
-                {APP_CONFIG.preReviewPriceKrw > 0
-                  ? `추가 비용 ${formatCurrency(
-                      APP_CONFIG.preReviewPriceKrw,
-                    )}원`
-                  : "무료로 제공되는 옵션입니다."}
-              </p>
-            </button>
-            <button
-              type="button"
-              onClick={() => setKaraokeRequested((prev) => !prev)}
-              className={`rounded-[28px] border p-6 text-left transition ${
-                karaokeRequested
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-border/60 bg-card/80 text-foreground hover:border-foreground"
-              }`}
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] opacity-70">
-                Karaoke
-              </p>
-              <h3 className="mt-2 text-lg font-semibold">노래방 등록 요청</h3>
-              <p className="mt-2 text-xs opacity-70">
-                신청 후 별도 담당자가 확인합니다.
-              </p>
-            </button>
-          </div>
-
-          <div className="rounded-[28px] border border-dashed border-border/60 bg-background/70 p-4 text-xs text-muted-foreground">
-            외국어 가사 번역이 필요한 경우 담당자가 별도 안내드립니다.
-          </div>
-        </div>
-      )}
-
-      {step === 4 && (
-        <div className="space-y-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-                STEP 04
-              </p>
-              <h2 className="font-display mt-2 text-2xl text-foreground">
                 결제하기
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
                 카드 결제 또는 무통장 입금을 선택할 수 있습니다.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setStep(3)}
-              className="rounded-full border border-border/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-foreground transition hover:border-foreground"
-            >
-              이전 단계
-            </button>
+          </div>
+
+          <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              선택한 옵션
+            </p>
+            <div className="mt-4 space-y-3 text-sm text-foreground">
+              {paymentItems.length > 0 ? (
+                paymentItems.map((item) => (
+                  <div
+                    key={`${item.title}-${item.amount}`}
+                    className="flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <span className="font-semibold">{item.title}</span>
+                    <span className="text-sm font-semibold">
+                      {formatCurrency(item.amount)}원
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  선택된 옵션이 없습니다.
+                </p>
+              )}
+            </div>
+            <div className="mt-4 flex items-center justify-between text-sm font-semibold text-foreground">
+              <span>총 결제 금액</span>
+              <span>{formatCurrency(totalAmount)}원</span>
+            </div>
           </div>
 
           <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
@@ -1070,21 +1453,30 @@ export function MvWizard({
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => handleSave("SUBMITTED")}
-            disabled={isSaving}
-            className="rounded-full bg-foreground px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 hover:bg-foreground/90 disabled:cursor-not-allowed disabled:bg-muted"
-          >
-            접수 완료 요청
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              className="rounded-full border border-border/70 px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-foreground transition hover:border-amber-200 hover:text-slate-900"
+            >
+              이전 단계
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSave("SUBMITTED")}
+              disabled={isSaving}
+              className="rounded-full bg-foreground px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 hover:bg-amber-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:bg-muted"
+            >
+              접수 완료 요청
+            </button>
+          </div>
         </div>
       )}
 
-      {step === 5 && (
+      {step === 4 && (
         <div className="rounded-[32px] border border-border/60 bg-card/80 p-10 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-            STEP 05
+            STEP 04
           </p>
           <h2 className="font-display mt-3 text-3xl text-foreground">
             접수 완료
@@ -1092,7 +1484,7 @@ export function MvWizard({
           <p className="mt-3 text-sm text-muted-foreground">
             결제 확인 후 진행 상태가 업데이트됩니다.
           </p>
-          {completionId && !isGuest && (
+          {completionId && !shouldShowGuestLookup && (
             <button
               type="button"
               onClick={() =>
@@ -1103,17 +1495,17 @@ export function MvWizard({
               진행 상황 보기
             </button>
           )}
-          {isGuest && (
+          {shouldShowGuestLookup && (
             <div className="mt-6 space-y-3">
               <p className="text-xs text-muted-foreground">
-                비회원 조회 코드:{" "}
+                조회 코드:{" "}
                 <span className="font-semibold text-foreground">
-                  {guestToken}
+                  {guestLookupCode}
                 </span>
               </p>
               <button
                 type="button"
-                onClick={() => router.push(`/track/${guestToken}`)}
+                onClick={() => router.push(`/track/${guestLookupCode}`)}
                 className="rounded-full bg-foreground px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5"
               >
                 진행 상황 조회
