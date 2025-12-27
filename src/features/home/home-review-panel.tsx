@@ -341,7 +341,7 @@ export function HomeReviewPanel({
               LIVE
             </>
           ) : (
-            "Sample"
+            "Example"
           )}
         </span>
       </div>
