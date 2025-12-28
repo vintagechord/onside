@@ -23,6 +23,43 @@ type SupabaseError = {
 
 type SupabaseClient = Awaited<ReturnType<typeof createServerSupabase>>;
 
+const albumStationCodesByCount: Record<number, string[]> = {
+  7: ["KBS", "MBC", "SBS", "CBS", "WBS", "TBS", "YTN"],
+  10: ["KBS", "MBC", "SBS", "TBS", "CBS", "PBC", "WBS", "BBS", "YTN", "ARIRANG"],
+  13: [
+    "KBS",
+    "MBC",
+    "SBS",
+    "TBS",
+    "CBS",
+    "PBC",
+    "WBS",
+    "BBS",
+    "YTN",
+    "GYEONGIN_IFM",
+    "TBN",
+    "ARIRANG",
+    "KISS",
+  ],
+  15: [
+    "KBS",
+    "MBC",
+    "SBS",
+    "TBS",
+    "CBS",
+    "PBC",
+    "WBS",
+    "BBS",
+    "YTN",
+    "GYEONGIN_IFM",
+    "TBN",
+    "ARIRANG",
+    "KISS",
+    "FEBC",
+    "GUGAK",
+  ],
+};
+
 const extractMissingColumn = (error: SupabaseError) => {
   const message = error.message ?? "";
   const match =
@@ -100,6 +137,89 @@ const insertWithColumnFallback = async (
     return { error };
   }
   return { error: lastError ?? { message: "삽입 실패" } };
+};
+
+const ensureStationReviews = async (
+  db: SupabaseClient,
+  submissionId: string,
+  stationIds: string[],
+) => {
+  if (stationIds.length === 0) {
+    return { error: null };
+  }
+
+  const { data: existingReviews, error: existingError } = await db
+    .from("station_reviews")
+    .select("station_id")
+    .eq("submission_id", submissionId);
+
+  if (existingError) {
+    return { error: existingError };
+  }
+
+  const existingSet = new Set(
+    (existingReviews ?? [])
+      .map((review) => review.station_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const missingStations = stationIds.filter((id) => !existingSet.has(id));
+
+  if (missingStations.length === 0) {
+    return { error: null };
+  }
+
+  const { error: insertError } = await db.from("station_reviews").insert(
+    missingStations.map((stationId) => ({
+      submission_id: submissionId,
+      station_id: stationId,
+      status: "NOT_SENT",
+    })),
+  );
+
+  return { error: insertError ?? null };
+};
+
+const resolveAlbumStationIds = async (
+  db: SupabaseClient,
+  packageId: string | undefined,
+) => {
+  if (!packageId) {
+    return { stationIds: [], missingCodes: [] as string[] };
+  }
+
+  const { data: packageRow, error: packageError } = await db
+    .from("packages")
+    .select("station_count")
+    .eq("id", packageId)
+    .maybeSingle();
+
+  if (packageError || !packageRow) {
+    return { stationIds: [], missingCodes: [] as string[] };
+  }
+
+  const expectedCodes = albumStationCodesByCount[packageRow.station_count];
+  if (!expectedCodes || expectedCodes.length === 0) {
+    return { stationIds: [], missingCodes: [] as string[] };
+  }
+
+  const { data: stations, error: stationError } = await db
+    .from("stations")
+    .select("id, code")
+    .in("code", expectedCodes);
+
+  if (stationError) {
+    return { stationIds: [], missingCodes: expectedCodes };
+  }
+
+  const stationMap = new Map(
+    (stations ?? []).map((station) => [station.code, station.id]),
+  );
+  const stationIds = expectedCodes
+    .map((code) => stationMap.get(code))
+    .filter((id): id is string => Boolean(id));
+  const missingCodes = expectedCodes.filter((code) => !stationMap.has(code));
+
+  return { stationIds, missingCodes };
 };
 
 const formatSubmissionError = (error: SupabaseError) => {
@@ -601,15 +721,23 @@ export async function saveAlbumSubmissionAction(
   }
 
   if (parsed.data.status === "SUBMITTED") {
-    const { data: existingReviews } = await db
-      .from("station_reviews")
-      .select("id")
-      .eq("submission_id", parsed.data.submissionId)
-      .limit(1)
-      .maybeSingle();
+    const selectedStationIds = Array.from(
+      new Set(parsed.data.selectedStationIds ?? []),
+    ).filter(Boolean);
+    let stationIds = selectedStationIds;
+    let missingCodes: string[] = [];
 
-    if (!existingReviews) {
-      const { data: packageStations, error: stationError } = await db
+    if (stationIds.length === 0) {
+      const resolved = await resolveAlbumStationIds(
+        adminDb,
+        parsed.data.packageId,
+      );
+      stationIds = resolved.stationIds;
+      missingCodes = resolved.missingCodes;
+    }
+
+    if (stationIds.length === 0) {
+      const { data: packageStations, error: stationError } = await adminDb
         .from("package_stations")
         .select("station_id")
         .eq("package_id", parsed.data.packageId);
@@ -618,21 +746,32 @@ export async function saveAlbumSubmissionAction(
         return { error: "방송국 정보를 불러올 수 없습니다." };
       }
 
-      if (packageStations && packageStations.length > 0) {
-        const stationRows = packageStations.map((station) => ({
-          submission_id: parsed.data.submissionId,
-          station_id: station.station_id,
-          status: "NOT_SENT",
-        }));
+      stationIds =
+        packageStations
+          ?.map((station) => station.station_id)
+          .filter((id): id is string => Boolean(id)) ?? [];
+    }
 
-        const { error: insertStationError } = await db
-          .from("station_reviews")
-          .insert(stationRows);
+    if (stationIds.length === 0) {
+      return { error: "방송국 정보를 불러올 수 없습니다." };
+    }
 
-        if (insertStationError) {
-          return { error: "방송국 진행 정보를 저장할 수 없습니다." };
-        }
-      }
+    if (missingCodes.length > 0) {
+      console.warn("Missing station codes for package", {
+        submissionId: parsed.data.submissionId,
+        packageId: parsed.data.packageId,
+        missingCodes,
+      });
+    }
+
+    const { error: reviewError } = await ensureStationReviews(
+      adminDb,
+      parsed.data.submissionId,
+      stationIds,
+    );
+
+    if (reviewError) {
+      return { error: "방송국 진행 정보를 저장할 수 없습니다." };
     }
   }
 
@@ -859,55 +998,32 @@ export async function saveMvSubmissionAction(
   }
 
   if (parsed.data.status === "SUBMITTED") {
-    const { data: existingReviews } = await db
-      .from("station_reviews")
-      .select("id")
-      .eq("submission_id", parsed.data.submissionId)
-      .limit(1)
-      .maybeSingle();
+    let stationIds = parsed.data.selectedStationIds ?? [];
 
-    if (!existingReviews) {
-      const selectedStations = parsed.data.selectedStationIds ?? [];
-      if (selectedStations.length > 0) {
-        const stationRows = selectedStations.map((stationId) => ({
-          submission_id: parsed.data.submissionId,
-          station_id: stationId,
-          status: "NOT_SENT",
-        }));
+    if (stationIds.length === 0 && parsed.data.packageId) {
+      const { data: packageStations, error: stationError } = await adminDb
+        .from("package_stations")
+        .select("station_id")
+        .eq("package_id", parsed.data.packageId);
 
-        const { error: insertStationError } = await db
-          .from("station_reviews")
-          .insert(stationRows);
-
-        if (insertStationError) {
-          return { error: "방송국 진행 정보를 저장할 수 없습니다." };
-        }
-      } else if (parsed.data.packageId) {
-        const { data: packageStations, error: stationError } = await db
-          .from("package_stations")
-          .select("station_id")
-          .eq("package_id", parsed.data.packageId);
-
-        if (stationError) {
-          return { error: "방송국 정보를 불러올 수 없습니다." };
-        }
-
-        if (packageStations && packageStations.length > 0) {
-          const stationRows = packageStations.map((station) => ({
-            submission_id: parsed.data.submissionId,
-            station_id: station.station_id,
-            status: "NOT_SENT",
-          }));
-
-          const { error: insertStationError } = await db
-            .from("station_reviews")
-            .insert(stationRows);
-
-          if (insertStationError) {
-            return { error: "방송국 진행 정보를 저장할 수 없습니다." };
-          }
-        }
+      if (stationError) {
+        return { error: "방송국 정보를 불러올 수 없습니다." };
       }
+
+      stationIds =
+        packageStations
+          ?.map((station) => station.station_id)
+          .filter((id): id is string => Boolean(id)) ?? [];
+    }
+
+    const { error: reviewError } = await ensureStationReviews(
+      adminDb,
+      parsed.data.submissionId,
+      stationIds,
+    );
+
+    if (reviewError) {
+      return { error: "방송국 진행 정보를 저장할 수 없습니다." };
     }
   }
 

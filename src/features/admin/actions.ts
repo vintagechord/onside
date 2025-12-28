@@ -122,8 +122,31 @@ const ensureBannerBucket = async (
   await admin.storage.createBucket(bannerBucket, { public: true });
 };
 
+const guessImageContentType = (file: File) => {
+  if (file.type) {
+    return file.type;
+  }
+  const lowerName = file.name.toLowerCase();
+  if (lowerName.endsWith(".png")) return "image/png";
+  if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")) {
+    return "image/jpeg";
+  }
+  if (lowerName.endsWith(".gif")) return "image/gif";
+  if (lowerName.endsWith(".webp")) return "image/webp";
+  if (lowerName.endsWith(".svg")) return "image/svg+xml";
+  return "application/octet-stream";
+};
+
+const isLikelyImageFile = (file: File) => {
+  if (file.type) {
+    return file.type.startsWith("image/");
+  }
+  const lowerName = file.name.toLowerCase();
+  return /\.(png|jpe?g|gif|webp|svg)$/i.test(lowerName);
+};
+
 const uploadBannerImage = async (file: File) => {
-  if (!file.type.startsWith("image/")) {
+  if (!isLikelyImageFile(file)) {
     return { error: "이미지 파일만 업로드 가능합니다." };
   }
 
@@ -131,12 +154,14 @@ const uploadBannerImage = async (file: File) => {
   await ensureBannerBucket(admin);
   const safeName = sanitizeFileName(file.name || "banner.jpg");
   const path = `${bannerFolder}/${Date.now()}-${safeName}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const arrayBuffer = await file.arrayBuffer();
 
-  const { error } = await admin.storage.from(bannerBucket).upload(path, buffer, {
-    contentType: file.type || "image/jpeg",
-    upsert: true,
-  });
+  const { error } = await admin.storage
+    .from(bannerBucket)
+    .upload(path, arrayBuffer, {
+      contentType: guessImageContentType(file),
+      upsert: true,
+    });
 
   if (error) {
     return { error: "배너 이미지 업로드에 실패했습니다." };
