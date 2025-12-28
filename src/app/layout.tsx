@@ -5,7 +5,6 @@ import "./globals.css";
 import { ChatbotWidget } from "@/components/chatbot-widget";
 import { SiteFooter } from "@/components/site/footer";
 import { SiteHeader } from "@/components/site/header";
-import { LeftAdBanner } from "@/components/site/left-ad-banner";
 import { ThemeProvider } from "@/components/theme-provider";
 
 const manrope = Manrope({
@@ -39,8 +38,10 @@ export default function RootLayout({
         <ThemeProvider>
           <div className="flex min-h-screen flex-col bg-background text-foreground">
             <SiteHeader />
-            <LeftAdBanner />
+
+            {/* Left banner disabled: keep only center strip banner on pages that render it */}
             <main className="flex-1">{children}</main>
+
             <SiteFooter />
             <ChatbotWidget />
           </div>

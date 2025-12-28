@@ -2,38 +2,32 @@ create extension if not exists "pgcrypto";
 
 do $$ begin
   create type submission_type as enum ('ALBUM', 'MV_DISTRIBUTION', 'MV_BROADCAST');
-exception
-  when duplicate_object then null;
+exception when duplicate_object then null;
 end $$;
 
 do $$ begin
   create type payment_status as enum ('UNPAID', 'PAYMENT_PENDING', 'PAID', 'REFUNDED');
-exception
-  when duplicate_object then null;
+exception when duplicate_object then null;
 end $$;
 
 do $$ begin
   create type submission_status as enum ('DRAFT', 'SUBMITTED', 'PRE_REVIEW', 'WAITING_PAYMENT', 'IN_PROGRESS', 'RESULT_READY', 'COMPLETED');
-exception
-  when duplicate_object then null;
+exception when duplicate_object then null;
 end $$;
 
 do $$ begin
   create type file_kind as enum ('AUDIO', 'VIDEO', 'LYRICS', 'ETC');
-exception
-  when duplicate_object then null;
+exception when duplicate_object then null;
 end $$;
 
 do $$ begin
   create type station_review_status as enum ('NOT_SENT', 'SENT', 'RECEIVED', 'APPROVED', 'REJECTED', 'NEEDS_FIX');
-exception
-  when duplicate_object then null;
+exception when duplicate_object then null;
 end $$;
 
 do $$ begin
   create type karaoke_status as enum ('REQUESTED', 'IN_REVIEW', 'COMPLETED');
-exception
-  when duplicate_object then null;
+exception when duplicate_object then null;
 end $$;
 
 create table if not exists public.packages (
@@ -139,10 +133,13 @@ create table if not exists public.karaoke_requests (
   created_at timestamptz not null default now()
 );
 
+-- triggers: 재실행 대비 (있으면 드롭 후 생성)
+drop trigger if exists set_submissions_updated_at on public.submissions;
 create trigger set_submissions_updated_at
 before update on public.submissions
 for each row execute procedure public.set_updated_at();
 
+drop trigger if exists set_station_reviews_updated_at on public.station_reviews;
 create trigger set_station_reviews_updated_at
 before update on public.station_reviews
 for each row execute procedure public.set_updated_at();
@@ -180,127 +177,152 @@ alter table public.station_reviews enable row level security;
 alter table public.submission_events enable row level security;
 alter table public.karaoke_requests enable row level security;
 
+-- policies: 재실행 대비 (있으면 드롭 후 생성)
+drop policy if exists "Packages readable" on public.packages;
 create policy "Packages readable"
 on public.packages
 for select
 using (true);
 
+drop policy if exists "Stations readable" on public.stations;
 create policy "Stations readable"
 on public.stations
 for select
 using (true);
 
+drop policy if exists "Package stations readable" on public.package_stations;
 create policy "Package stations readable"
 on public.package_stations
 for select
 using (true);
 
+drop policy if exists "Admin manages packages" on public.packages;
 create policy "Admin manages packages"
 on public.packages
 for all
 using (public.is_admin())
 with check (public.is_admin());
 
+drop policy if exists "Admin manages stations" on public.stations;
 create policy "Admin manages stations"
 on public.stations
 for all
 using (public.is_admin())
 with check (public.is_admin());
 
+drop policy if exists "Admin manages package stations" on public.package_stations;
 create policy "Admin manages package stations"
 on public.package_stations
 for all
 using (public.is_admin())
 with check (public.is_admin());
 
+drop policy if exists "Submissions readable" on public.submissions;
 create policy "Submissions readable"
 on public.submissions
 for select
 using (user_id = auth.uid() or public.is_admin());
 
+drop policy if exists "Submissions insertable" on public.submissions;
 create policy "Submissions insertable"
 on public.submissions
 for insert
 with check (user_id = auth.uid());
 
+drop policy if exists "Submissions updatable" on public.submissions;
 create policy "Submissions updatable"
 on public.submissions
 for update
 using (user_id = auth.uid() or public.is_admin())
 with check (user_id = auth.uid() or public.is_admin());
 
+drop policy if exists "Tracks readable" on public.album_tracks;
 create policy "Tracks readable"
 on public.album_tracks
 for select
 using (public.can_access_submission(submission_id));
 
+drop policy if exists "Tracks insertable" on public.album_tracks;
 create policy "Tracks insertable"
 on public.album_tracks
 for insert
 with check (public.can_access_submission(submission_id));
 
+drop policy if exists "Tracks updatable" on public.album_tracks;
 create policy "Tracks updatable"
 on public.album_tracks
 for update
 using (public.can_access_submission(submission_id))
 with check (public.can_access_submission(submission_id));
 
+drop policy if exists "Tracks deletable" on public.album_tracks;
 create policy "Tracks deletable"
 on public.album_tracks
 for delete
 using (public.can_access_submission(submission_id));
 
+drop policy if exists "Files readable" on public.submission_files;
 create policy "Files readable"
 on public.submission_files
 for select
 using (public.can_access_submission(submission_id));
 
+drop policy if exists "Files insertable" on public.submission_files;
 create policy "Files insertable"
 on public.submission_files
 for insert
 with check (public.can_access_submission(submission_id));
 
+drop policy if exists "Files deletable" on public.submission_files;
 create policy "Files deletable"
 on public.submission_files
 for delete
 using (public.can_access_submission(submission_id));
 
+drop policy if exists "Station reviews readable" on public.station_reviews;
 create policy "Station reviews readable"
 on public.station_reviews
 for select
 using (public.can_access_submission(submission_id));
 
+drop policy if exists "Station reviews insertable" on public.station_reviews;
 create policy "Station reviews insertable"
 on public.station_reviews
 for insert
 with check (public.can_access_submission(submission_id) and status = 'NOT_SENT');
 
+drop policy if exists "Station reviews updatable" on public.station_reviews;
 create policy "Station reviews updatable"
 on public.station_reviews
 for update
 using (public.is_admin())
 with check (public.is_admin());
 
+drop policy if exists "Submission events readable" on public.submission_events;
 create policy "Submission events readable"
 on public.submission_events
 for select
 using (public.can_access_submission(submission_id));
 
+drop policy if exists "Submission events insertable" on public.submission_events;
 create policy "Submission events insertable"
 on public.submission_events
 for insert
 with check (public.can_access_submission(submission_id));
 
+drop policy if exists "Karaoke requests readable" on public.karaoke_requests;
 create policy "Karaoke requests readable"
 on public.karaoke_requests
 for select
 using (user_id = auth.uid() or public.is_admin());
 
+drop policy if exists "Karaoke requests insertable" on public.karaoke_requests;
 create policy "Karaoke requests insertable"
 on public.karaoke_requests
 for insert
 with check (user_id = auth.uid());
 
+drop policy if exists "Karaoke requests updatable" on public.karaoke_requests;
 create policy "Karaoke requests updatable"
 on public.karaoke_requests
 for update

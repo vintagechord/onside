@@ -18,9 +18,14 @@ begin
 end;
 $$;
 
-create trigger set_profiles_updated_at
-before update on public.profiles
-for each row execute procedure public.set_updated_at();
+do $$ begin
+  create trigger set_profiles_updated_at
+  before update on public.profiles
+  for each row execute procedure public.set_updated_at();
+exception
+  when duplicate_object then null;
+end $$;
+
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -45,23 +50,42 @@ begin
 end;
 $$;
 
-create trigger on_auth_user_created
-after insert on auth.users
-for each row execute procedure public.handle_new_user();
+do $$ begin
+  create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+exception
+  when duplicate_object then null;
+end $$;
 
 alter table public.profiles enable row level security;
 
-create policy "Profiles are viewable by owner"
-on public.profiles
-for select
-using (auth.uid() = user_id);
+do $$ begin
+  create policy "Profiles are viewable by owner"
+  on public.profiles
+  for select
+  using (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
 
-create policy "Profiles are insertable by owner"
-on public.profiles
-for insert
-with check (auth.uid() = user_id);
 
-create policy "Profiles are updatable by owner"
-on public.profiles
-for update
-using (auth.uid() = user_id);
+do $$ begin
+  create policy "Profiles are insertable by owner"
+  on public.profiles
+  for insert
+  with check (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+
+
+do $$ begin
+  create policy "Profiles are updatable by owner"
+  on public.profiles
+  for update
+  using (auth.uid() = user_id);
+exception
+  when duplicate_object then null;
+end $$;
+

@@ -46,78 +46,28 @@ create table if not exists public.ad_banners (
   updated_at timestamptz not null default now()
 );
 
-do $$ begin
-  create trigger set_ad_banners_updated_at
-  before update on public.ad_banners
-  for each row execute procedure public.set_updated_at();
-exception
-  when duplicate_object then null;
-end $$;
+-- trigger: 재실행 대비
+drop trigger if exists set_ad_banners_updated_at on public.ad_banners;
+create trigger set_ad_banners_updated_at
+before update on public.ad_banners
+for each row execute procedure public.set_updated_at();
 
 alter table public.ad_banners enable row level security;
 
-do $$ begin
-  create policy "Ad banners readable"
-  on public.ad_banners
-  for select
-  using (
-    is_active
-    and (starts_at is null or starts_at <= now())
-    and (ends_at is null or ends_at >= now())
-  );
-exception
-  when duplicate_object then null;
-end $$;
+-- policies: 재실행 대비
+drop policy if exists "Ad banners readable" on public.ad_banners;
+create policy "Ad banners readable"
+on public.ad_banners
+for select
+using (
+  is_active
+  and (starts_at is null or starts_at <= now())
+  and (ends_at is null or ends_at >= now())
+);
 
-do $$ begin
-  create policy "Admin manages ad banners"
-  on public.ad_banners
-  for all
-  using (public.is_admin())
-  with check (public.is_admin());
-exception
-  when duplicate_object then null;
-end $$;
-
-insert into storage.buckets (id, name, public)
-values ('submissions', 'submissions', false)
-on conflict (id) do nothing;
-
-do $$ begin
-  create policy "Submission files are readable by owner"
-  on storage.objects
-  for select
-  using (
-    bucket_id = 'submissions'
-    and (
-      (storage.foldername(name))[1] = auth.uid()::text
-      or public.is_admin()
-    )
-  );
-exception
-  when duplicate_object then null;
-end $$;
-
-do $$ begin
-  create policy "Submission files are insertable by owner"
-  on storage.objects
-  for insert
-  with check (
-    bucket_id = 'submissions'
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
-exception
-  when duplicate_object then null;
-end $$;
-
-do $$ begin
-  create policy "Submission files are deletable by admin"
-  on storage.objects
-  for delete
-  using (
-    bucket_id = 'submissions'
-    and public.is_admin()
-  );
-exception
-  when duplicate_object then null;
-end $$;
+drop policy if exists "Admin manages ad banners" on public.ad_banners;
+create policy "Admin manages ad banners"
+on public.ad_banners
+for all
+using (public.is_admin())
+with check (public.is_admin());

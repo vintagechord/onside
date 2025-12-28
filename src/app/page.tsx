@@ -35,7 +35,15 @@ const heroCtas = [
           rx="18"
           fill="url(#albumSleeve)"
         />
-        <rect x="28" y="30" width="52" height="60" rx="14" fill="#ffffff" opacity="0.65" />
+        <rect
+          x="28"
+          y="30"
+          width="52"
+          height="60"
+          rx="14"
+          fill="#ffffff"
+          opacity="0.65"
+        />
         <circle cx="112" cy="60" r="28" fill="url(#albumDisc)" />
         <circle cx="112" cy="60" r="10" fill="#f8fbff" opacity="0.9" />
         <circle cx="112" cy="60" r="4" fill="#dbeafe" />
@@ -92,8 +100,22 @@ const featureHighlights = [
           </linearGradient>
         </defs>
         <circle cx="48" cy="52" r="18" fill="url(#signalOrb)" />
-        <path d="M28 52a20 20 0 0 1 40 0" fill="none" stroke="#7db0ff" strokeWidth="4" strokeLinecap="round" opacity="0.6" />
-        <path d="M20 52a28 28 0 0 1 56 0" fill="none" stroke="#7db0ff" strokeWidth="3" strokeLinecap="round" opacity="0.35" />
+        <path
+          d="M28 52a20 20 0 0 1 40 0"
+          fill="none"
+          stroke="#7db0ff"
+          strokeWidth="4"
+          strokeLinecap="round"
+          opacity="0.6"
+        />
+        <path
+          d="M20 52a28 28 0 0 1 56 0"
+          fill="none"
+          stroke="#7db0ff"
+          strokeWidth="3"
+          strokeLinecap="round"
+          opacity="0.35"
+        />
         <circle cx="48" cy="52" r="4" fill="#ffffff" opacity="0.9" />
       </svg>
     ),
@@ -122,7 +144,14 @@ const featureHighlights = [
         <circle cx="70" cy="52" r="14" fill="url(#uploadCloud)" />
         <rect x="24" y="52" width="56" height="18" rx="9" fill="url(#uploadCloud)" />
         <path d="M48 30v26" stroke="#0f172a" strokeWidth="5" strokeLinecap="round" />
-        <path d="M38 40l10-10 10 10" fill="none" stroke="#0f172a" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="M38 40l10-10 10 10"
+          fill="none"
+          stroke="#0f172a"
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     ),
   },
@@ -149,7 +178,14 @@ const featureHighlights = [
           d="M48 12l26 10v22c0 16-10 30-26 36-16-6-26-20-26-36V22z"
           fill="url(#shieldCore)"
         />
-        <path d="M34 48l10 10 18-18" fill="none" stroke="#ffffff" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="M34 48l10 10 18-18"
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     ),
   },
@@ -189,27 +225,6 @@ const serviceCardTones = [
   "bg-[#5f67f2] text-[#111111] border-transparent",
 ];
 
-/* const sidebarAds = [
-  {
-    title: "ONSIDE TIP",
-    subtitle: "심의 신청 가이드",
-    href: "/guide",
-    tone: "from-[#111827] via-[#1f2937] to-[#0f172a]",
-  },
-  {
-    title: "원클릭 접수",
-    subtitle: "멜론 링크로 간편 심의",
-    href: "/dashboard/new/album?mode=oneclick",
-    tone: "from-[#f97316] via-[#f59e0b] to-[#facc15]",
-  },
-  {
-    title: "제휴 안내",
-    subtitle: "파트너 제안 접수",
-    href: "/",
-    tone: "from-[#1d4ed8] via-[#3b82f6] to-[#60a5fa]",
-  },
-]; */
-
 type StationSnapshot = {
   id: string;
   status: string;
@@ -228,9 +243,9 @@ type SubmissionSnapshot = {
   updated_at: string;
   type?: string;
   package?:
-    | Array<{ name?: string | null; station_count?: number | null }>
-    | { name?: string | null; station_count?: number | null }
-    | null;
+  | Array<{ name?: string | null; station_count?: number | null }>
+  | { name?: string | null; station_count?: number | null }
+  | null;
 };
 
 const sampleStations: StationSnapshot[] = [
@@ -307,9 +322,7 @@ export default async function Home() {
     updated_at: new Date().toISOString(),
   };
 
-  let albumSubmission: SubmissionSnapshot | null = isLoggedIn
-    ? null
-    : sampleAlbum;
+  let albumSubmission: SubmissionSnapshot | null = isLoggedIn ? null : sampleAlbum;
   let mvSubmission: SubmissionSnapshot | null = isLoggedIn ? null : sampleMv;
   let albumStations: StationSnapshot[] = isLoggedIn ? [] : sampleStations;
   let mvStations: StationSnapshot[] = isLoggedIn ? [] : sampleStations;
@@ -324,9 +337,7 @@ export default async function Home() {
   ) =>
     (reviews ?? []).map((review) => ({
       ...review,
-      station: Array.isArray(review.station)
-        ? review.station[0]
-        : review.station ?? null,
+      station: Array.isArray(review.station) ? review.station[0] : review.station ?? null,
     }));
 
   if (user) {
@@ -357,12 +368,14 @@ export default async function Home() {
       const packageInfo = Array.isArray(albumSubmission.package)
         ? albumSubmission.package[0]
         : albumSubmission.package;
+
       await ensureAlbumStationReviews(
         supabase,
         albumSubmission.id,
         packageInfo?.station_count ?? null,
         packageInfo?.name ?? null,
       );
+
       const { data: albumReviews } = await supabase
         .from("station_reviews")
         .select("id, status, updated_at, station:stations ( name )")
@@ -382,7 +395,6 @@ export default async function Home() {
       mvStations = normalizeStations(mvReviews);
     }
   }
-
 
   return (
     <div className="relative overflow-hidden">
@@ -416,10 +428,7 @@ export default async function Home() {
                   playsInline
                   preload="metadata"
                 >
-                  <source
-                    src={heroVideoMobile || heroVideoDesktop}
-                    type="video/mp4"
-                  />
+                  <source src={heroVideoMobile || heroVideoDesktop} type="video/mp4" />
                 </video>
               </>
             ) : (
@@ -456,13 +465,12 @@ export default async function Home() {
                       {cta.icon}
                     </div>
                     <div className="px-5 py-4 text-center">
-                      <p className="text-base font-semibold text-slate-900">
-                        {cta.title}
-                      </p>
+                      <p className="text-base font-semibold text-slate-900">{cta.title}</p>
                     </div>
                   </Link>
                 ))}
               </div>
+
               <div className="hidden gap-5 pt-5 sm:grid sm:grid-cols-3 lg:mt-auto">
                 {featureHighlights.map((feature) => (
                   <div key={feature.title} className="group [perspective:1200px]">
@@ -503,45 +511,9 @@ export default async function Home() {
 
       <section className="mx-auto w-full max-w-6xl px-6 pb-12 pt-4">
         <div className="mb-14">
+          {/* Center strip banner only */}
           <StripAdBanner />
         </div>
-        {/* <div className="hidden 2xl:block">
-          <div
-            className="fixed top-28 left-1/2 z-30 w-[200px] space-y-4"
-            style={{
-              transform: "translateX(calc(-36rem - 224px))",
-            }}
-          >
-            <div className="rounded-[22px] border border-border/60 bg-background/80 p-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-                Banner AD
-              </p>
-              <div className="mt-4 space-y-4">
-                {sidebarAds.map((ad) => (
-                  <Link
-                    key={ad.title}
-                    href={ad.href}
-                    className="group block overflow-hidden rounded-2xl border border-border/60 shadow-[0_12px_30px_rgba(15,23,42,0.12)] transition hover:-translate-y-1"
-                  >
-                    <div
-                      className={`flex aspect-[4/3] flex-col justify-end gap-2 bg-gradient-to-br ${ad.tone} p-4 text-white`}
-                    >
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/80">
-                        Sponsored
-                      </span>
-                      <span className="text-base font-semibold">
-                        {ad.title}
-                      </span>
-                      <span className="text-xs text-white/85">
-                        {ad.subtitle}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div> */}
 
         <div
           data-scroll-reveal
@@ -564,6 +536,7 @@ export default async function Home() {
             신청서(구양식) 다운로드 접수 안내 →
           </Link>
         </div>
+
         <div className="mt-8 grid gap-6 md:grid-cols-3">
           {serviceCards.map((card, index) => (
             <Link
@@ -572,12 +545,11 @@ export default async function Home() {
               data-scroll-reveal
               data-reveal-state="hidden"
               style={{ transitionDelay: `${120 + index * 120}ms` }}
-              className={`group relative flex min-h-[190px] flex-col justify-between rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(0,0,0,0.25)] transition hover:-translate-y-1 ${scrollRevealBaseClass} ${serviceCardTones[index] ?? "bg-white text-[#111111] border-border/60"}`}
+              className={`group relative flex min-h-[190px] flex-col justify-between rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(0,0,0,0.25)] transition hover:-translate-y-1 ${scrollRevealBaseClass} ${serviceCardTones[index] ?? "bg-white text-[#111111] border-border/60"
+                }`}
             >
               <div className="space-y-3">
-                <h3 className="text-2xl font-semibold leading-snug">
-                  {card.title}
-                </h3>
+                <h3 className="text-2xl font-semibold leading-snug">{card.title}</h3>
                 <p className="text-sm opacity-80">{card.description}</p>
               </div>
               <div className="mt-6 flex items-center justify-between">
@@ -609,28 +581,27 @@ export default async function Home() {
                 심의는 4단계로 진행됩니다
               </h2>
               <p className="mt-3 max-w-xl text-sm text-muted-foreground">
-                상품/방송국 패키지 선택부터 결제 확인까지 흐름을 간단하게
-                설계했습니다.
+                상품/방송국 패키지 선택부터 결제 확인까지 흐름을 간단하게 설계했습니다.
               </p>
             </div>
           </div>
+
           <div className="mt-8 grid gap-4 md:grid-cols-4">
-            {["패키지 선택", "신청서 업로드", "결제하기", "접수 완료"].map(
-              (label, index) => (
-                <div
-                  key={label}
-                  data-scroll-reveal
-                  data-reveal-state="hidden"
-                  style={{ transitionDelay: `${120 + index * 120}ms` }}
-                  className={`rounded-2xl border p-4 ${scrollRevealBaseClass} ${processStepTones[index] ?? "border-border/60 bg-card/70 text-foreground"}`}
-                >
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-80">
-                    STEP {String(index + 1).padStart(2, "0")}
-                  </p>
-                  <p className="mt-2 text-sm font-semibold">{label}</p>
-                </div>
-              ),
-            )}
+            {["패키지 선택", "신청서 업로드", "결제하기", "접수 완료"].map((label, index) => (
+              <div
+                key={label}
+                data-scroll-reveal
+                data-reveal-state="hidden"
+                style={{ transitionDelay: `${120 + index * 120}ms` }}
+                className={`rounded-2xl border p-4 ${scrollRevealBaseClass} ${processStepTones[index] ?? "border-border/60 bg-card/70 text-foreground"
+                  }`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-80">
+                  STEP {String(index + 1).padStart(2, "0")}
+                </p>
+                <p className="mt-2 text-sm font-semibold">{label}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
