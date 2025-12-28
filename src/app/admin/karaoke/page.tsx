@@ -14,6 +14,26 @@ const statusOptions = ["REQUESTED", "IN_REVIEW", "COMPLETED"];
 const paymentStatusOptions = ["UNPAID", "PAYMENT_PENDING", "PAID", "REFUNDED"];
 const recommendationStatusOptions = ["PENDING", "APPROVED", "REJECTED"];
 
+type KaraokeRequestRow = {
+  id: string;
+  title: string | null;
+  artist: string | null;
+  contact: string | null;
+  notes: string | null;
+  file_path: string | null;
+  status: string;
+  created_at: string;
+  payment_status: string | null;
+  payment_method: string | null;
+  amount_krw: number | null;
+  bank_depositor_name: string | null;
+  tj_requested: boolean | null;
+  ky_requested: boolean | null;
+  guest_name?: string | null;
+  guest_email?: string | null;
+  guest_phone?: string | null;
+};
+
 export default async function AdminKaraokePage({
   searchParams,
 }: {
@@ -38,8 +58,11 @@ export default async function AdminKaraokePage({
   };
 
   let hasGuestColumns = true;
-  let { data: requests, error: requestsError } =
-    await buildQuery(guestSelect);
+  let requests: KaraokeRequestRow[] = [];
+  let requestsError = null as { message?: string; code?: string } | null;
+  const guestResult = await buildQuery(guestSelect);
+  requestsError = guestResult.error ?? null;
+  requests = (guestResult.data ?? []) as KaraokeRequestRow[];
 
   if (
     requestsError?.message?.toLowerCase().includes("guest_name") ||
@@ -47,7 +70,7 @@ export default async function AdminKaraokePage({
   ) {
     hasGuestColumns = false;
     const fallback = await buildQuery(baseSelect);
-    requests = fallback.data ?? null;
+    requests = (fallback.data ?? []) as KaraokeRequestRow[];
     requestsError = fallback.error ?? null;
   }
 

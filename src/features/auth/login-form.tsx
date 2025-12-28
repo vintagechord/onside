@@ -54,14 +54,14 @@ export function LoginForm() {
       >
         로그인
       </button>
-      <p className="text-center text-sm text-muted-foreground">
-        비회원으로 접수한 경우{" "}
+      <div className="text-center text-sm text-muted-foreground">
+        <span>비회원으로 접수한 경우 </span>
         <TrackLookupModalTrigger
           label="코드입력"
           className="inline-flex items-center rounded-full border border-foreground/40 px-3 py-1 text-xs font-semibold text-foreground transition hover:bg-foreground hover:text-background"
-        />{" "}
-        으로 확인 가능합니다.
-      </p>
+        />
+        <span> 으로 확인 가능합니다.</span>
+      </div>
     </form>
   );
 }
