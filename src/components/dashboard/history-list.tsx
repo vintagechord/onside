@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 
 type StationReview = {
   id: string;
@@ -19,9 +19,72 @@ type HistoryItem = {
   typeLabel: string;
   createdAt: string | null;
   updatedAt: string | null;
+  status: string;
+  paymentStatus: string | null;
+  paymentMethod: string | null;
   amountKrw: number | null;
   isOneclick: boolean | null;
+  packageInfo?: {
+    name?: string | null;
+    station_count?: number | null;
+  } | null;
+  tracks: Array<{ id: string; trackNo: number; title: string }>;
   stationReviews: StationReview[];
+};
+
+const submissionStatusMap: Record<string, { label: string; tone: string }> = {
+  DRAFT: {
+    label: "임시 저장",
+    tone: "bg-slate-500/15 text-slate-700 dark:text-slate-200",
+  },
+  SUBMITTED: {
+    label: "접수 완료",
+    tone: "bg-sky-500/15 text-sky-700 dark:text-sky-200",
+  },
+  PRE_REVIEW: {
+    label: "사전 검토",
+    tone: "bg-amber-500/15 text-amber-700 dark:text-amber-200",
+  },
+  WAITING_PAYMENT: {
+    label: "결제 확인 중",
+    tone: "bg-amber-500/15 text-amber-700 dark:text-amber-200",
+  },
+  IN_PROGRESS: {
+    label: "심의 진행",
+    tone: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-200",
+  },
+  RESULT_READY: {
+    label: "결과 확인",
+    tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-200",
+  },
+  COMPLETED: {
+    label: "완료",
+    tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-200",
+  },
+};
+
+const paymentStatusMap: Record<string, { label: string; tone: string }> = {
+  UNPAID: {
+    label: "미결제",
+    tone: "bg-slate-500/10 text-slate-500 dark:text-slate-300",
+  },
+  PAYMENT_PENDING: {
+    label: "결제 확인 중",
+    tone: "bg-amber-500/15 text-amber-700 dark:text-amber-200",
+  },
+  PAID: {
+    label: "결제 완료",
+    tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-200",
+  },
+  REFUNDED: {
+    label: "환불",
+    tone: "bg-rose-500/15 text-rose-700 dark:text-rose-200",
+  },
+};
+
+const paymentMethodLabels: Record<string, string> = {
+  BANK: "무통장",
+  CARD: "카드",
 };
 
 const receptionStatusMap: Record<string, { label: string; tone: string }> = {
@@ -89,6 +152,21 @@ const getResultStatus = (status: string) =>
     label: "대기",
     tone: "bg-slate-500/10 text-slate-500 dark:text-slate-300",
   };
+
+const getSubmissionStatus = (status: string) =>
+  submissionStatusMap[status] ?? {
+    label: status,
+    tone: "bg-slate-500/15 text-slate-700 dark:text-slate-200",
+  };
+
+const getPaymentStatus = (status?: string | null) =>
+  status ? paymentStatusMap[status] ?? {
+    label: status,
+    tone: "bg-slate-500/10 text-slate-500 dark:text-slate-300",
+  } : null;
+
+const getPaymentMethodLabel = (method?: string | null) =>
+  method ? paymentMethodLabels[method] ?? method : null;
 
 export function HistoryList({ initialItems }: { initialItems: HistoryItem[] }) {
   const [items, setItems] = React.useState<HistoryItem[]>(initialItems);
@@ -176,52 +254,76 @@ export function HistoryList({ initialItems }: { initialItems: HistoryItem[] }) {
           {notice}
         </div>
       )}
-      {items.map((submission) => (
-        <div
-          key={submission.id}
-          className="grid items-center gap-4 rounded-2xl border border-border/60 bg-card/80 px-4 py-3 text-sm transition hover:border-foreground md:grid-cols-[28px_28px_1fr_auto]"
-        >
-          <input
-            type="checkbox"
-            checked={selectedIds.has(submission.id)}
-            onChange={() => toggleSelection(submission.id)}
-            className="h-4 w-4 rounded border-border"
-          />
-          <span className="text-xs text-muted-foreground">
-            {submission.order}
-          </span>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-200/70 via-white/40 to-indigo-200/60 text-xs font-semibold text-foreground">
-              ONS
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-foreground">
-                  {submission.title}
-                </p>
-                <span
-                  className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-700"
-                >
-                  전체 심의 완료
-                </span>
+      {items.map((submission) => {
+        const statusInfo = getSubmissionStatus(submission.status);
+        const paymentInfo = getPaymentStatus(submission.paymentStatus);
+        const paymentMethodLabel = getPaymentMethodLabel(
+          submission.paymentMethod,
+        );
+        const packageLabel = submission.packageInfo?.name ?? "패키지 미지정";
+        const trackCount = submission.tracks.length;
+        const amountLabel =
+          submission.amountKrw != null
+            ? `${formatCurrency(submission.amountKrw)}원`
+            : null;
+        return (
+          <div
+            key={submission.id}
+            className="grid items-center gap-4 rounded-2xl border border-border/60 bg-card/80 px-4 py-3 text-sm transition hover:border-foreground md:grid-cols-[28px_28px_1fr_auto]"
+          >
+            <input
+              type="checkbox"
+              checked={selectedIds.has(submission.id)}
+              onChange={() => toggleSelection(submission.id)}
+              className="h-4 w-4 rounded border-border"
+            />
+            <span className="text-xs text-muted-foreground">
+              {submission.order}
+            </span>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-200/70 via-white/40 to-indigo-200/60 text-xs font-semibold text-foreground">
+                ONS
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {submission.artistName} · {submission.typeLabel} ·{" "}
-                {formatDateTime(submission.createdAt)}
-              </p>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-foreground">
+                    {submission.title}
+                  </p>
+                  <span
+                    className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] ${statusInfo.tone}`}
+                  >
+                    {statusInfo.label}
+                  </span>
+                  {paymentInfo && (
+                    <span
+                      className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] ${paymentInfo.tone}`}
+                    >
+                      {paymentInfo.label}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {submission.artistName} · {submission.typeLabel} ·{" "}
+                  {packageLabel}
+                  {trackCount > 0 ? ` · 트랙 ${trackCount}곡` : ""} ·{" "}
+                  {amountLabel ? `${amountLabel} · ` : ""}
+                  {paymentMethodLabel ? `${paymentMethodLabel} · ` : ""}
+                  {formatDateTime(submission.createdAt)}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+              <button
+                type="button"
+                onClick={() => setActiveSubmission(submission)}
+                className="rounded-full border border-border/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground transition hover:border-foreground"
+              >
+                상세보기
+              </button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
-            <button
-              type="button"
-              onClick={() => setActiveSubmission(submission)}
-              className="rounded-full border border-border/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground transition hover:border-foreground"
-            >
-              상세보기
-            </button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
 
       {activeSubmission && (
         <div
@@ -270,6 +372,38 @@ export function HistoryList({ initialItems }: { initialItems: HistoryItem[] }) {
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-[0.2em]">
+                  현재 상태
+                </p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {getSubmissionStatus(activeSubmission.status).label}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em]">
+                  결제 상태
+                </p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {getPaymentStatus(activeSubmission.paymentStatus)?.label ?? "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em]">
+                  결제 방식
+                </p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {getPaymentMethodLabel(activeSubmission.paymentMethod) ?? "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em]">
+                  패키지
+                </p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {activeSubmission.packageInfo?.name ?? "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em]">
                   결제 금액
                 </p>
                 <p className="mt-1 text-sm font-semibold text-foreground">
@@ -294,6 +428,35 @@ export function HistoryList({ initialItems }: { initialItems: HistoryItem[] }) {
                   {formatDateTime(activeSubmission.updatedAt)}
                 </p>
               </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-border/60 bg-card/80 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                트랙 목록
+              </p>
+              {activeSubmission.tracks.length > 0 ? (
+                <div className="mt-3 space-y-2 text-sm text-foreground">
+                  {activeSubmission.tracks
+                    .sort((a, b) => a.trackNo - b.trackNo)
+                    .map((track) => (
+                      <div
+                        key={track.id}
+                        className="flex items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-xs"
+                      >
+                        <span className="text-muted-foreground">
+                          {track.trackNo.toString().padStart(2, "0")}
+                        </span>
+                        <span className="flex-1 px-3 text-sm font-semibold text-foreground">
+                          {track.title || "제목 미입력"}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  등록된 트랙 정보가 없습니다.
+                </p>
+              )}
             </div>
 
             <div className="mt-5 overflow-hidden rounded-2xl border border-border/60 bg-background/80">

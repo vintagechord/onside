@@ -147,14 +147,6 @@ const lyricCautions = [
   "실제 발매 앨범과 동일한 음원·가사·트랙수가 필요합니다. (예: 2트랙 앨범—AR 1곡 + INST 1곡—의 경우 INST까지 제출)",
 ];
 
-const normalizeLyricsText = (value: string) =>
-  value
-    .replace(/\r\n/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .replace(/ *\n */g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
 const hasEnglish = (value: string) => /[A-Za-z]/.test(value);
 const hasKorean = (value: string) => /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(value);
 
@@ -280,6 +272,7 @@ export function AlbumWizard({
   const [showCdInfo, setShowCdInfo] = React.useState(false);
   const [showOneclickNotice, setShowOneclickNotice] = React.useState(false);
   const lyricsOverlayRef = React.useRef<HTMLDivElement | null>(null);
+  const lyricsTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const [lyricsToolApplied, setLyricsToolApplied] = React.useState<
     Record<number, boolean>
   >({});
@@ -290,11 +283,17 @@ export function AlbumWizard({
     Record<number, boolean>
   >({});
   const [spellcheckChangesByTrack, setSpellcheckChangesByTrack] =
-    React.useState<Record<number, Array<{ before: string; after: string }>>>(
-      {},
-    );
+    React.useState<
+      Record<number, Array<{ before: string; after: string; index?: number }>>
+    >({});
   const [spellcheckAppliedMap, setSpellcheckAppliedMap] = React.useState<
     Record<number, boolean>
+  >({});
+  const [spellcheckNoticeMap, setSpellcheckNoticeMap] = React.useState<
+    Record<
+      number,
+      { type: "success" | "error" | "info"; message: string }
+    >
   >({});
   const [isSpellchecking, setIsSpellchecking] = React.useState(false);
   const [isTranslatingLyrics, setIsTranslatingLyrics] = React.useState(false);
@@ -340,6 +339,7 @@ export function AlbumWizard({
     profanityWords.length > 0;
   const spellcheckChanges =
     spellcheckChangesByTrack[activeTrackIndex] ?? [];
+  const spellcheckNotice = spellcheckNoticeMap[activeTrackIndex];
   const showSpellcheckPreview = Boolean(
     spellcheckAppliedMap[activeTrackIndex],
   );
@@ -528,27 +528,87 @@ export function AlbumWizard({
   };
 
   const handleSpellCheck = async () => {
-    const lyrics = activeTrack.lyrics.trim();
-    if (!lyrics) return;
+    const lyrics = activeTrack.lyrics;
+    const trimmedLyrics = lyrics.trim();
+    if (!trimmedLyrics) {
+      setSpellcheckNoticeMap((prev) => ({
+        ...prev,
+        [activeTrackIndex]: {
+          type: "error",
+          message: "가사를 입력한 뒤 맞춤법을 적용해주세요.",
+        },
+      }));
+      return;
+    }
+    const textarea = lyricsTextareaRef.current;
+    const selectionStart = textarea?.selectionStart ?? null;
+    const selectionEnd = textarea?.selectionEnd ?? null;
+    const scrollTop = textarea?.scrollTop ?? 0;
+
     setIsSpellchecking(true);
+    setSpellcheckNoticeMap((prev) => ({
+      ...prev,
+      [activeTrackIndex]: {
+        type: "info",
+        message: "맞춤법을 적용하는 중입니다.",
+      },
+    }));
     try {
       const response = await fetch("/api/spellcheck", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text: lyrics }),
+        body: JSON.stringify({ text: lyrics, mode: "auto_apply" }),
       });
-      const payload = await response
-        .json()
-        .catch(() => ({ corrected: "", changes: [] }));
+      const payload = await response.json().catch(() => null);
+      if (!payload || payload.ok !== true) {
+        const message =
+          payload?.error?.message ??
+          "일시적으로 맞춤법 적용에 실패했습니다. 잠시 후 다시 시도해주세요.";
+        setSpellcheckNoticeMap((prev) => ({
+          ...prev,
+          [activeTrackIndex]: { type: "error", message },
+        }));
+        return;
+      }
+
       const corrected =
-        typeof payload?.corrected === "string"
-          ? payload.corrected
-          : normalizeLyricsText(lyrics);
-      const changes = Array.isArray(payload?.changes)
+        typeof payload.corrected === "string" ? payload.corrected : lyrics;
+      if (!corrected || (!corrected.trim() && trimmedLyrics)) {
+        setSpellcheckNoticeMap((prev) => ({
+          ...prev,
+          [activeTrackIndex]: {
+            type: "error",
+            message:
+              "맞춤법 결과가 비정상적입니다. 원문은 유지되며 다시 시도해주세요.",
+          },
+        }));
+        return;
+      }
+      if (lyrics.length > 20 && corrected.length < lyrics.length * 0.5) {
+        setSpellcheckNoticeMap((prev) => ({
+          ...prev,
+          [activeTrackIndex]: {
+            type: "error",
+            message:
+              "맞춤법 결과가 너무 짧아 적용하지 않았습니다. 다시 시도해주세요.",
+          },
+        }));
+        return;
+      }
+
+      const rawChanges = Array.isArray(payload.changes)
         ? payload.changes
         : [];
+      const changes = rawChanges
+        .map((change) => ({
+          before: typeof change?.from === "string" ? change.from : "",
+          after: typeof change?.to === "string" ? change.to : "",
+          index: typeof change?.index === "number" ? change.index : undefined,
+        }))
+        .filter((change) => change.before && change.after);
+
       updateTrack(activeTrackIndex, "lyrics", corrected);
       setSpellcheckChangesByTrack((prev) => ({
         ...prev,
@@ -560,19 +620,43 @@ export function AlbumWizard({
       }));
       setLyricsTab("spellcheck");
       markLyricsToolApplied(activeTrackIndex);
+
+      let message = "맞춤법이 적용되었습니다.";
+      if (corrected === lyrics) {
+        message = "변경 사항이 없습니다.";
+      } else if (changes.length > 0) {
+        message = `맞춤법이 적용되었습니다. (${changes.length}건 수정)`;
+      }
+      if (payload.meta?.truncated) {
+        message = `${message} 긴 가사로 일부만 적용되었습니다.`;
+      }
+      setSpellcheckNoticeMap((prev) => ({
+        ...prev,
+        [activeTrackIndex]: { type: "success", message },
+      }));
+
+      requestAnimationFrame(() => {
+        const target = lyricsTextareaRef.current;
+        if (target) {
+          if (selectionStart !== null && selectionEnd !== null) {
+            target.setSelectionRange(selectionStart, selectionEnd);
+          }
+          target.scrollTop = scrollTop;
+        }
+        if (lyricsOverlayRef.current) {
+          lyricsOverlayRef.current.scrollTop = scrollTop;
+        }
+      });
     } catch (error) {
       console.error(error);
-      const normalized = normalizeLyricsText(lyrics);
-      updateTrack(activeTrackIndex, "lyrics", normalized);
-      setSpellcheckChangesByTrack((prev) => ({
+      setSpellcheckNoticeMap((prev) => ({
         ...prev,
-        [activeTrackIndex]: [],
+        [activeTrackIndex]: {
+          type: "error",
+          message:
+            "일시적으로 맞춤법 적용에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        },
       }));
-      setSpellcheckAppliedMap((prev) => ({
-        ...prev,
-        [activeTrackIndex]: true,
-      }));
-      markLyricsToolApplied(activeTrackIndex);
     } finally {
       setIsSpellchecking(false);
     }
@@ -2020,6 +2104,19 @@ export function AlbumWizard({
                             번역 {isTranslatingLyrics ? "중..." : ""}
                           </button>
                         </div>
+                        {spellcheckNotice && (
+                          <div
+                            className={`mt-2 rounded-2xl border px-4 py-2 text-xs font-semibold ${
+                              spellcheckNotice.type === "error"
+                                ? "border-red-200/70 bg-red-50 text-red-700"
+                                : spellcheckNotice.type === "success"
+                                  ? "border-emerald-200/70 bg-emerald-50 text-emerald-800"
+                                  : "border-amber-200/70 bg-amber-50 text-amber-900"
+                            }`}
+                          >
+                            {spellcheckNotice.message}
+                          </div>
+                        )}
                         {showLyricsToolNotice && (
                           <div className="pointer-events-none mt-0 max-h-0 overflow-hidden rounded-2xl border border-transparent bg-transparent px-4 py-0 text-sm font-semibold leading-relaxed text-amber-900 opacity-0 transition-all duration-300 ease-out group-hover/lyrics-tools:pointer-events-auto group-hover/lyrics-tools:mt-2 group-hover/lyrics-tools:max-h-64 group-hover/lyrics-tools:border-amber-200/70 group-hover/lyrics-tools:bg-amber-50/80 group-hover/lyrics-tools:py-3 group-hover/lyrics-tools:opacity-100 group-focus-within/lyrics-tools:pointer-events-auto group-focus-within/lyrics-tools:mt-2 group-focus-within/lyrics-tools:max-h-64 group-focus-within/lyrics-tools:border-amber-200/70 group-focus-within/lyrics-tools:bg-amber-50/80 group-focus-within/lyrics-tools:py-3 group-focus-within/lyrics-tools:opacity-100">
                             위 기능은 최소한의 보조수단입니다. 하단 유의사항을 꼭
@@ -2044,6 +2141,7 @@ export function AlbumWizard({
                           </div>
                         )}
                         <textarea
+                          ref={lyricsTextareaRef}
                           value={activeTrack.lyrics}
                           onChange={(event) =>
                             updateTrack(
@@ -2543,9 +2641,7 @@ export function AlbumWizard({
           {completionId && !shouldShowGuestLookup && (
             <button
               type="button"
-              onClick={() =>
-                router.push(`/dashboard/submissions/${completionId}`)
-              }
+              onClick={() => router.push("/dashboard")}
               className="mt-6 rounded-full bg-foreground px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5"
             >
               진행 상황 보기

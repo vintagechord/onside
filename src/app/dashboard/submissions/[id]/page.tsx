@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { SubmissionDetailClient } from "@/features/submissions/submission-detail-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { ensureAlbumStationReviews } from "@/lib/station-reviews";
 
 export const metadata = {
   title: "심의 상세",
@@ -50,9 +51,16 @@ export default async function SubmissionDetailPage({
   };
 
   let resolvedSubmission = await fetchSubmission(supabase, "id", params.id);
+  const admin = createAdminClient();
+
+  if (!resolvedSubmission && user) {
+    const adminSubmission = await fetchSubmission(admin, "id", params.id);
+    if (adminSubmission && adminSubmission.user_id === user.id) {
+      resolvedSubmission = adminSubmission;
+    }
+  }
 
   if (!resolvedSubmission && !user) {
-    const admin = createAdminClient();
     resolvedSubmission = await fetchSubmission(admin, "guest_token", params.id);
   }
 
@@ -63,24 +71,42 @@ export default async function SubmissionDetailPage({
     ? resolvedSubmission.package[0]
     : resolvedSubmission.package;
 
+  if (resolvedSubmission.type === "ALBUM") {
+    await ensureAlbumStationReviews(
+      supabase,
+      resolvedSubmission.id,
+      packageInfo?.station_count ?? null,
+      packageInfo?.name ?? null,
+    );
+  }
+
+  const stationReviewsClient = user ? supabase : admin;
+
   const { data: events } = await supabase
     .from("submission_events")
     .select("id, event_type, message, created_at")
-    .eq("submission_id", params.id)
+    .eq("submission_id", resolvedSubmission.id)
     .order("created_at", { ascending: false });
 
-  const { data: stationReviews } = await supabase
+  const { data: stationReviews } = await stationReviewsClient
     .from("station_reviews")
     .select(
       "id, status, result_note, updated_at, station:stations ( id, name, code )",
     )
-    .eq("submission_id", params.id)
+    .eq("submission_id", resolvedSubmission.id)
     .order("updated_at", { ascending: false });
   const normalizedStationReviews =
     stationReviews?.map((review) => ({
       ...review,
       station: Array.isArray(review.station) ? review.station[0] : review.station,
     })) ?? [];
+
+  const filesClient = user ? supabase : admin;
+  const { data: submissionFiles } = await filesClient
+    .from("submission_files")
+    .select("id, kind, file_path, original_name, mime, size, created_at")
+    .eq("submission_id", resolvedSubmission.id)
+    .order("created_at", { ascending: false });
 
   const isOwner = Boolean(user && resolvedSubmission.user_id === user.id);
   let creditBalance = 0;
@@ -110,6 +136,7 @@ export default async function SubmissionDetailPage({
       initialSubmission={{ ...resolvedSubmission, package: packageInfo ?? null }}
       initialEvents={events ?? []}
       initialStationReviews={normalizedStationReviews}
+      initialFiles={submissionFiles ?? []}
       creditBalance={creditBalance}
       promotion={promotion}
       canManagePromotion={isOwner}

@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 
 import { contributeKaraokePromotionAction } from "@/features/karaoke/actions";
 import { getMvRatingFileUrlAction } from "@/features/submissions/actions";
+import {
+  SubmissionFilesPanel,
+  type SubmissionFile,
+} from "@/features/submissions/submission-files-panel";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
@@ -137,6 +141,7 @@ const getReviewResult = (status: string) =>
 export function SubmissionDetailClient({
   submissionId,
   initialSubmission,
+  initialFiles,
   initialEvents,
   initialStationReviews,
   promotion,
@@ -147,6 +152,7 @@ export function SubmissionDetailClient({
 }: {
   submissionId: string;
   initialSubmission: Submission;
+  initialFiles: SubmissionFile[];
   initialEvents: SubmissionEvent[];
   initialStationReviews: StationReview[];
   promotion?: PromotionInfo | null;
@@ -167,6 +173,9 @@ export function SubmissionDetailClient({
   );
   const [stationReviews, setStationReviews] = React.useState<StationReview[]>(
     initialStationReviews ?? [],
+  );
+  const [files, setFiles] = React.useState<SubmissionFile[]>(
+    initialFiles ?? [],
   );
   const [promotionCredits, setPromotionCredits] = React.useState(1);
   const [tjEnabled, setTjEnabled] = React.useState(
@@ -262,6 +271,16 @@ export function SubmissionDetailClient({
         })),
       );
     }
+
+    const { data: fileData } = await supabase
+      .from("submission_files")
+      .select("id, kind, file_path, original_name, mime, size, created_at")
+      .eq("submission_id", submissionId)
+      .order("created_at", { ascending: false });
+
+    if (fileData) {
+      setFiles(fileData);
+    }
   }, [submissionId, supabase]);
 
   React.useEffect(() => {
@@ -294,6 +313,16 @@ export function SubmissionDetailClient({
           event: "*",
           schema: "public",
           table: "submission_events",
+          filter: `submission_id=eq.${submissionId}`,
+        },
+        fetchLatest,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "submission_files",
           filter: `submission_id=eq.${submissionId}`,
         },
         fetchLatest,
@@ -379,88 +408,102 @@ export function SubmissionDetailClient({
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-            접수 정보
-          </p>
-          <div className="mt-4 grid gap-4 text-sm text-foreground md:grid-cols-2">
-            <div>
-              <p className="text-xs text-muted-foreground">패키지</p>
-              <p className="mt-1 font-semibold">
-                {packageInfo?.name ?? "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">방송국 수</p>
-              <p className="mt-1 font-semibold">
-                {packageInfo?.station_count ?? "-"}곳
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">금액</p>
-              <p className="mt-1 font-semibold">
-                {submission.amount_krw
-                  ? `${formatCurrency(submission.amount_krw)}원`
-                  : packageInfo?.price_krw
-                    ? `${formatCurrency(packageInfo.price_krw)}원`
-                    : "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">결제 상태</p>
-              <p className="mt-1 font-semibold">
-                {submission.payment_status}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">결제 방식</p>
-              <p className="mt-1 font-semibold">
-                {submission.payment_method
-                  ? paymentMethodLabels[submission.payment_method] ??
-                    submission.payment_method
-                  : "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">접수 일시</p>
-              <p className="mt-1 font-semibold">
-                {formatDateTime(submission.created_at)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">최근 업데이트</p>
-              <p className="mt-1 font-semibold">
-                {formatDateTime(submission.updated_at)}
-              </p>
-            </div>
-            {isMvSubmission && (
-              <div className="md:col-span-2">
-                <p className="text-xs text-muted-foreground">등급분류 파일</p>
-                {isResultReady && submission.mv_rating_file_path ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleRatingFileDownload}
-                      disabled={isRatingDownloading}
-                      className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 hover:bg-amber-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      등급분류 파일 다운로드
-                    </button>
-                    {ratingFileNotice.error && (
-                      <span className="text-xs text-red-500">
-                        {ratingFileNotice.error}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {isResultReady
-                      ? "등급분류 파일이 아직 등록되지 않았습니다."
-                      : "심의 완료 후 다운로드 가능합니다."}
-                  </p>
-                )}
+        <div className="space-y-6">
+          <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              접수 정보
+            </p>
+            <div className="mt-4 grid gap-4 text-sm text-foreground md:grid-cols-2">
+              <div>
+                <p className="text-xs text-muted-foreground">패키지</p>
+                <p className="mt-1 font-semibold">
+                  {packageInfo?.name ?? "-"}
+                </p>
               </div>
-            )}
+              <div>
+                <p className="text-xs text-muted-foreground">방송국 수</p>
+                <p className="mt-1 font-semibold">
+                  {packageInfo?.station_count ?? "-"}곳
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">금액</p>
+                <p className="mt-1 font-semibold">
+                  {submission.amount_krw
+                    ? `${formatCurrency(submission.amount_krw)}원`
+                    : packageInfo?.price_krw
+                      ? `${formatCurrency(packageInfo.price_krw)}원`
+                      : "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">결제 상태</p>
+                <p className="mt-1 font-semibold">
+                  {submission.payment_status}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">결제 방식</p>
+                <p className="mt-1 font-semibold">
+                  {submission.payment_method
+                    ? paymentMethodLabels[submission.payment_method] ??
+                      submission.payment_method
+                    : "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">접수 일시</p>
+                <p className="mt-1 font-semibold">
+                  {formatDateTime(submission.created_at)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">최근 업데이트</p>
+                <p className="mt-1 font-semibold">
+                  {formatDateTime(submission.updated_at)}
+                </p>
+              </div>
+              {isMvSubmission && (
+                <div className="md:col-span-2">
+                  <p className="text-xs text-muted-foreground">등급분류 파일</p>
+                  {isResultReady && submission.mv_rating_file_path ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handleRatingFileDownload}
+                        disabled={isRatingDownloading}
+                        className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 hover:bg-amber-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        등급분류 파일 다운로드
+                      </button>
+                      {ratingFileNotice.error && (
+                        <span className="text-xs text-red-500">
+                          {ratingFileNotice.error}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {isResultReady
+                        ? "등급분류 파일이 아직 등록되지 않았습니다."
+                        : "심의 완료 후 다운로드 가능합니다."}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              첨부 파일
+            </p>
+            <div className="mt-4">
+              <SubmissionFilesPanel
+                submissionId={submissionId}
+                files={files}
+                guestToken={guestToken}
+              />
+            </div>
           </div>
         </div>
         <div className="space-y-6">

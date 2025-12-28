@@ -11,6 +11,11 @@ export type KaraokeActionState = {
   message?: string;
 };
 
+export type KaraokeFileUrlActionState = {
+  error?: string;
+  url?: string;
+};
+
 const karaokeRequestSchema = z.object({
   title: z.string().min(1),
   artist: z.string().optional(),
@@ -56,6 +61,14 @@ const promotionContributionSchema = z
   .refine((data) => data.submissionId || data.promotionId, {
     message: "대상 정보가 필요합니다.",
   });
+
+const karaokeRequestFileSchema = z.object({
+  requestId: z.string().uuid(),
+});
+
+const karaokeRecommendationFileSchema = z.object({
+  recommendationId: z.string().uuid(),
+});
 
 const promotionRecommendationSchema = z.object({
   promotionId: z.string().uuid(),
@@ -126,6 +139,92 @@ export async function createKaraokeRequestAction(
   }
 
   return { message: "노래방 등록 요청이 접수되었습니다." };
+}
+
+export async function getKaraokeRequestFileUrlAction(
+  payload: z.infer<typeof karaokeRequestFileSchema>,
+): Promise<KaraokeFileUrlActionState> {
+  const parsed = karaokeRequestFileSchema.safeParse(payload);
+  if (!parsed.success) {
+    return { error: "파일 정보를 확인해주세요." };
+  }
+
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    return { error: "로그인 정보를 확인할 수 없습니다." };
+  }
+
+  if (!user) {
+    return { error: "로그인 후 확인할 수 있습니다." };
+  }
+
+  const { data: request } = await supabase
+    .from("karaoke_requests")
+    .select("file_path")
+    .eq("id", parsed.data.requestId)
+    .maybeSingle();
+
+  if (!request?.file_path) {
+    return { error: "첨부된 파일이 없습니다." };
+  }
+
+  const { data, error } = await supabase.storage
+    .from("submissions")
+    .createSignedUrl(request.file_path, 60 * 10);
+
+  if (error || !data?.signedUrl) {
+    return { error: "다운로드 링크를 생성할 수 없습니다." };
+  }
+
+  return { url: data.signedUrl };
+}
+
+export async function getKaraokeRecommendationFileUrlAction(
+  payload: z.infer<typeof karaokeRecommendationFileSchema>,
+): Promise<KaraokeFileUrlActionState> {
+  const parsed = karaokeRecommendationFileSchema.safeParse(payload);
+  if (!parsed.success) {
+    return { error: "파일 정보를 확인해주세요." };
+  }
+
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    return { error: "로그인 정보를 확인할 수 없습니다." };
+  }
+
+  if (!user) {
+    return { error: "로그인 후 확인할 수 있습니다." };
+  }
+
+  const { data: recommendation } = await supabase
+    .from("karaoke_promotion_recommendations")
+    .select("proof_path")
+    .eq("id", parsed.data.recommendationId)
+    .maybeSingle();
+
+  if (!recommendation?.proof_path) {
+    return { error: "첨부된 파일이 없습니다." };
+  }
+
+  const { data, error } = await supabase.storage
+    .from("submissions")
+    .createSignedUrl(recommendation.proof_path, 60 * 10);
+
+  if (error || !data?.signedUrl) {
+    return { error: "다운로드 링크를 생성할 수 없습니다." };
+  }
+
+  return { url: data.signedUrl };
 }
 
 export async function createKaraokeVoteAction(

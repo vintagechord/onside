@@ -7,7 +7,6 @@ import { ThemeToggle } from "./theme-toggle";
 
 const navLinks = [
   { label: "심의 신청", href: "/dashboard/new" },
-  { label: "진행상황", href: "/dashboard" },
   { label: "노래방 등록", href: "/karaoke-request" },
   { label: "이메일 접수", href: "/forms", badge: "Legacy" },
 ];
@@ -39,7 +38,19 @@ export async function SiteHeader() {
             )}
           </Link>
           <nav className="hidden items-center gap-3 text-base font-semibold text-foreground/80 md:flex">
-            {navLinks.map((link) => (
+            <Link
+              href={navLinks[0].href}
+              className="group flex items-center gap-2 rounded-full px-3 py-1 transition hover:bg-white hover:text-slate-900"
+            >
+              <span>{navLinks[0].label}</span>
+            </Link>
+            <Link
+              href="/dashboard"
+              className="group flex items-center gap-2 rounded-full px-3 py-1 transition hover:bg-white hover:text-slate-900"
+            >
+              <span>진행상황</span>
+            </Link>
+            {navLinks.slice(1).map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -91,7 +102,19 @@ export async function SiteHeader() {
         </div>
       </div>
       <div className="flex items-center gap-2 overflow-x-auto border-t border-border/50 px-6 py-3 text-sm font-semibold text-muted-foreground md:hidden">
-        {navLinks.map((link) => (
+        <Link
+          href={navLinks[0].href}
+          className="group flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-1 transition hover:bg-white hover:text-slate-900"
+        >
+          <span>{navLinks[0].label}</span>
+        </Link>
+        <Link
+          href="/dashboard"
+          className="group flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-1 transition hover:bg-white hover:text-slate-900"
+        >
+          <span>진행상황</span>
+        </Link>
+        {navLinks.slice(1).map((link) => (
           <Link
             key={link.href}
             href={link.href}
@@ -99,9 +122,9 @@ export async function SiteHeader() {
           >
             <span>{link.label}</span>
             {"badge" in link && link.badge ? (
-            <span className="rounded-full border border-black/20 bg-black/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground/70 transition group-hover:text-slate-900">
-              {link.badge}
-            </span>
+              <span className="rounded-full border border-black/20 bg-black/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground/70 transition group-hover:text-slate-900">
+                {link.badge}
+              </span>
             ) : null}
           </Link>
         ))}

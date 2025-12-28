@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { SubmissionDetailClient } from "@/features/submissions/submission-detail-client";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureAlbumStationReviews } from "@/lib/station-reviews";
 
 export const metadata = {
   title: "비회원 진행 상황",
@@ -66,6 +67,15 @@ export default async function TrackDetailPage({
     ? submission.package[0]
     : submission.package;
 
+  if (submission.type === "ALBUM") {
+    await ensureAlbumStationReviews(
+      admin,
+      submission.id,
+      packageInfo?.station_count ?? null,
+      packageInfo?.name ?? null,
+    );
+  }
+
   const { data: events } = await admin
     .from("submission_events")
     .select("id, event_type, message, created_at")
@@ -85,6 +95,12 @@ export default async function TrackDetailPage({
       station: Array.isArray(review.station) ? review.station[0] : review.station,
     })) ?? [];
 
+  const { data: submissionFiles } = await admin
+    .from("submission_files")
+    .select("id, kind, file_path, original_name, mime, size, created_at")
+    .eq("submission_id", submission.id)
+    .order("created_at", { ascending: false });
+
   return (
     <>
       <div className="mx-auto w-full max-w-6xl px-6 pt-10">
@@ -98,6 +114,7 @@ export default async function TrackDetailPage({
         initialSubmission={{ ...submission, package: packageInfo ?? null }}
         initialEvents={events ?? []}
         initialStationReviews={normalizedStationReviews}
+        initialFiles={submissionFiles ?? []}
         enableRealtime={false}
         guestToken={token}
       />

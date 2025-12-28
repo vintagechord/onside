@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { LoginForm } from "@/features/auth/login-form";
-
 export const metadata = {
   title: "로그인",
 };
@@ -19,13 +18,6 @@ export default function LoginPage() {
           <p className="text-sm text-muted-foreground">
             접수 현황과 심의 진행 상황을 실시간으로 확인하세요.
           </p>
-          <div className="rounded-2xl border border-dashed border-border/70 bg-background/70 p-4 text-xs text-muted-foreground">
-            아직 계정이 없으신가요?{" "}
-            <Link href="/signup" className="font-semibold text-foreground">
-              회원가입
-            </Link>
-            으로 시작하세요.
-          </div>
         </div>
         <LoginForm />
       </div>

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { KaraokeFileButton } from "@/features/karaoke/karaoke-file-button";
 import { formatDateTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
@@ -9,6 +10,7 @@ type KaraokeRequest = {
   id: string;
   title: string;
   artist: string | null;
+  file_path?: string | null;
   status: string;
   created_at: string;
   updated_at?: string | null;
@@ -45,7 +47,7 @@ export function KaraokeStatusPanel({
     if (!supabase || !userId) return;
     const { data } = await supabase
       .from("karaoke_requests")
-      .select("id, title, artist, status, created_at, updated_at")
+      .select("id, title, artist, file_path, status, created_at, updated_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
     if (data) {
@@ -134,6 +136,15 @@ export function KaraokeStatusPanel({
                   );
                 })}
               </div>
+              {request.file_path && (
+                <div className="mt-4">
+                  <KaraokeFileButton
+                    kind="request"
+                    targetId={request.id}
+                    label="첨부파일 확인"
+                  />
+                </div>
+              )}
             </div>
           );
         })

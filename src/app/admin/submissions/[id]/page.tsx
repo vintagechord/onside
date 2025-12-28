@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation";
 
 import {
+  updateSubmissionBasicInfoFormAction,
   updatePaymentStatusFormAction,
   updateStationReviewFormAction,
   updateSubmissionStatusFormAction,
 } from "@/features/admin/actions";
+import { SubmissionFilesPanel } from "@/features/submissions/submission-files-panel";
 import { formatDateTime } from "@/lib/format";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureAlbumStationReviews } from "@/lib/station-reviews";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 export const metadata = {
   title: "접수 상세 관리",
@@ -57,14 +60,31 @@ export default async function AdminSubmissionDetailPage({
 }: {
   params: { id: string };
 }) {
-  const supabase = createAdminClient();
-  const { data: submission } = await supabase
+  const supabase = await createServerSupabase();
+  const baseSelect =
+    "id, title, artist_name, status, payment_status, payment_method, amount_krw, mv_base_selected, pre_review_requested, karaoke_requested, bank_depositor_name, admin_memo, mv_rating_file_path, created_at, updated_at, type, package:packages ( name, station_count )";
+  const guestSelect = `${baseSelect}, guest_name, guest_company, guest_email, guest_phone`;
+
+  let hasGuestColumns = true;
+  let { data: submission, error: submissionError } = await supabase
     .from("submissions")
-    .select(
-      "id, title, artist_name, status, payment_status, payment_method, amount_krw, mv_base_selected, pre_review_requested, karaoke_requested, bank_depositor_name, admin_memo, mv_rating_file_path, created_at, updated_at, type, guest_name, guest_company, guest_email, guest_phone, package:packages ( name )",
-    )
+    .select(guestSelect)
     .eq("id", params.id)
     .maybeSingle();
+
+  if (
+    submissionError?.message?.toLowerCase().includes("guest_name") ||
+    submissionError?.code === "42703"
+  ) {
+    hasGuestColumns = false;
+    const fallback = await supabase
+      .from("submissions")
+      .select(baseSelect)
+      .eq("id", params.id)
+      .maybeSingle();
+    submission = fallback.data ?? null;
+    submissionError = fallback.error ?? null;
+  }
 
   if (!submission) {
     notFound();
@@ -74,6 +94,15 @@ export default async function AdminSubmissionDetailPage({
     : submission.package;
   const isMvSubmission =
     submission.type === "MV_BROADCAST" || submission.type === "MV_DISTRIBUTION";
+
+  if (submission.type === "ALBUM") {
+    await ensureAlbumStationReviews(
+      supabase,
+      submission.id,
+      packageInfo?.station_count ?? null,
+      packageInfo?.name ?? null,
+    );
+  }
 
   const { data: stationReviews } = await supabase
     .from("station_reviews")
@@ -86,6 +115,12 @@ export default async function AdminSubmissionDetailPage({
   const { data: events } = await supabase
     .from("submission_events")
     .select("id, event_type, message, created_at")
+    .eq("submission_id", params.id)
+    .order("created_at", { ascending: false });
+
+  const { data: submissionFiles } = await supabase
+    .from("submission_files")
+    .select("id, kind, file_path, original_name, mime, size, created_at")
     .eq("submission_id", params.id)
     .order("created_at", { ascending: false });
 
@@ -160,9 +195,53 @@ export default async function AdminSubmissionDetailPage({
           </div>
           <div className="rounded-[28px] border border-border/60 bg-card/80 p-6 text-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              아티스트/앨범 정보
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              원클릭 접수 등에서 누락된 정보를 관리자가 직접 입력합니다.
+            </p>
+            <form
+              action={updateSubmissionBasicInfoFormAction}
+              className="mt-4 grid gap-4 md:grid-cols-2"
+            >
+              <input type="hidden" name="submissionId" value={submission.id} />
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  아티스트명
+                </label>
+                <input
+                  name="artistName"
+                  defaultValue={submission.artist_name ?? ""}
+                  placeholder="아티스트명을 입력해주세요."
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  앨범 제목
+                </label>
+                <input
+                  name="title"
+                  defaultValue={submission.title ?? ""}
+                  placeholder="앨범 제목을 입력해주세요."
+                  className="w-full rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-foreground"
+                />
+              </div>
+              <div className="md:col-span-2 flex justify-end">
+                <button
+                  type="submit"
+                  className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 hover:bg-amber-200 hover:text-slate-900"
+                >
+                  저장
+                </button>
+              </div>
+            </form>
+          </div>
+          <div className="rounded-[28px] border border-border/60 bg-card/80 p-6 text-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
               신청자 정보
             </p>
-            {submission.guest_name ? (
+            {hasGuestColumns && submission.guest_name ? (
               <div className="mt-4 space-y-2 text-sm text-foreground">
                 <p>
                   <span className="text-xs text-muted-foreground">구분</span>{" "}
@@ -313,6 +392,18 @@ export default async function AdminSubmissionDetailPage({
                 상태 저장
               </button>
             </form>
+          </div>
+
+          <div className="rounded-[28px] border border-border/60 bg-card/80 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              첨부 파일
+            </p>
+            <div className="mt-4">
+              <SubmissionFilesPanel
+                submissionId={submission.id}
+                files={submissionFiles ?? []}
+              />
+            </div>
           </div>
         </div>
 

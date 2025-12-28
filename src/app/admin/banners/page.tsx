@@ -2,18 +2,29 @@ import {
   deleteAdBannerFormAction,
   upsertAdBannerFormAction,
 } from "@/features/admin/actions";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 export const metadata = {
   title: "배너 관리",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminBannersPage() {
-  const supabase = createAdminClient();
-  const { data: banners } = await supabase
+  const supabase = await createServerSupabase();
+  let { data: banners, error: bannersError } = await supabase
     .from("ad_banners")
     .select("id, title, image_url, link_url, is_active, starts_at, ends_at")
     .order("created_at", { ascending: false });
+  const bannerTableMissing =
+    bannersError?.message
+      ?.toLowerCase()
+      .includes("ad_banners") &&
+    bannersError.message.toLowerCase().includes("schema cache");
+
+  if (bannerTableMissing) {
+    banners = [];
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-12">
@@ -26,6 +37,13 @@ export default async function AdminBannersPage() {
       </p>
 
       <div className="mt-8 space-y-6">
+        {bannersError && (
+          <div className="rounded-2xl border border-dashed border-red-500/40 bg-red-500/10 px-4 py-3 text-xs text-red-600">
+            {bannerTableMissing
+              ? "배너 테이블이 아직 생성되지 않았습니다. Supabase 마이그레이션을 실행해주세요."
+              : `배너 목록을 불러오지 못했습니다. (${bannersError.message})`}
+          </div>
+        )}
         <section className="space-y-4 rounded-[32px] border border-border/60 bg-card/80 p-6">
           <h2 className="text-lg font-semibold text-foreground">등록된 배너</h2>
           <div className="space-y-4">

@@ -24,6 +24,7 @@ type KaraokeRequest = {
   id: string;
   title: string;
   artist: string | null;
+  file_path?: string | null;
   status: string;
   created_at: string;
   updated_at?: string | null;

@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState } from "react";
+
+import { TrackLookupModalTrigger } from "@/features/track/track-lookup-modal";
 
 import { loginAction, type ActionState } from "./actions";
 
@@ -53,11 +54,13 @@ export function LoginForm() {
       >
         로그인
       </button>
-      <p className="text-center text-xs text-muted-foreground">
-        아직 계정이 없나요?{" "}
-        <Link href="/signup" className="font-semibold text-foreground">
-          회원가입
-        </Link>
+      <p className="text-center text-sm text-muted-foreground">
+        비회원으로 접수한 경우{" "}
+        <TrackLookupModalTrigger
+          label="코드입력"
+          className="inline-flex items-center rounded-full border border-foreground/40 px-3 py-1 text-xs font-semibold text-foreground transition hover:bg-foreground hover:text-background"
+        />{" "}
+        으로 확인 가능합니다.
       </p>
     </form>
   );

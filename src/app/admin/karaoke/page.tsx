@@ -2,6 +2,7 @@ import {
   updateKaraokeStatusFormAction,
   updateKaraokePromotionRecommendationStatusFormAction,
 } from "@/features/karaoke/actions";
+import { KaraokeFileButton } from "@/features/karaoke/karaoke-file-button";
 import { formatDateTime } from "@/lib/format";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -19,18 +20,36 @@ export default async function AdminKaraokePage({
   searchParams: { status?: string };
 }) {
   const supabase = await createServerSupabase();
-  let query = supabase
-    .from("karaoke_requests")
-    .select(
-      "id, title, artist, contact, notes, status, created_at, guest_name, guest_email, guest_phone, payment_status, payment_method, amount_krw, bank_depositor_name, tj_requested, ky_requested",
-    )
-    .order("created_at", { ascending: false });
+  const baseSelect =
+    "id, title, artist, contact, notes, file_path, status, created_at, payment_status, payment_method, amount_krw, bank_depositor_name, tj_requested, ky_requested";
+  const guestSelect = `${baseSelect}, guest_name, guest_email, guest_phone`;
 
-  if (searchParams.status) {
-    query = query.eq("status", searchParams.status);
+  const buildQuery = (selectFields: string) => {
+    let query = supabase
+      .from("karaoke_requests")
+      .select(selectFields)
+      .order("created_at", { ascending: false });
+
+    if (searchParams.status) {
+      query = query.eq("status", searchParams.status);
+    }
+
+    return query;
+  };
+
+  let hasGuestColumns = true;
+  let { data: requests, error: requestsError } =
+    await buildQuery(guestSelect);
+
+  if (
+    requestsError?.message?.toLowerCase().includes("guest_name") ||
+    requestsError?.code === "42703"
+  ) {
+    hasGuestColumns = false;
+    const fallback = await buildQuery(baseSelect);
+    requests = fallback.data ?? null;
+    requestsError = fallback.error ?? null;
   }
-
-  const { data: requests } = await query;
 
   const { data: recommendations } = await supabase
     .from("karaoke_promotion_recommendations")
@@ -71,7 +90,11 @@ export default async function AdminKaraokePage({
       </form>
 
       <div className="mt-6 space-y-4">
-        {requests && requests.length > 0 ? (
+        {requestsError ? (
+          <div className="rounded-2xl border border-dashed border-red-500/40 bg-red-500/10 px-4 py-3 text-xs text-red-600">
+            요청 목록을 불러오지 못했습니다. ({requestsError.message})
+          </div>
+        ) : requests && requests.length > 0 ? (
           requests.map((request) => (
             <div
               key={request.id}
@@ -84,7 +107,7 @@ export default async function AdminKaraokePage({
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {request.artist ?? "-"} · {request.contact}
-                    {request.guest_name ? " · 비회원" : ""}
+                    {hasGuestColumns && request.guest_name ? " · 비회원" : ""}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
                     결제: {request.payment_status} · 방식:{" "}
@@ -105,11 +128,20 @@ export default async function AdminKaraokePage({
                   {formatDateTime(request.created_at)}
                 </p>
               </div>
-              {request.guest_name && (
+              {hasGuestColumns && request.guest_name && (
                 <p className="mt-2 text-xs text-muted-foreground">
                   담당자 {request.guest_name} · {request.guest_phone ?? "-"} ·{" "}
                   {request.guest_email ?? "-"}
                 </p>
+              )}
+              {request.file_path && (
+                <div className="mt-2">
+                  <KaraokeFileButton
+                    kind="request"
+                    targetId={request.id}
+                    label="첨부파일 확인"
+                  />
+                </div>
               )}
               <p className="mt-3 text-xs text-muted-foreground">
                 {request.notes ?? "요청 사항 없음"}
@@ -199,9 +231,13 @@ export default async function AdminKaraokePage({
               );
             })()}
                 {recommendation.proof_path && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    인증샷: {recommendation.proof_path}
-                  </p>
+                  <div className="mt-2">
+                    <KaraokeFileButton
+                      kind="recommendation"
+                      targetId={recommendation.id}
+                      label="인증샷 확인"
+                    />
+                  </div>
                 )}
                 <form
                   action={updateKaraokePromotionRecommendationStatusFormAction}

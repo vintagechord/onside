@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { HomeReviewPanel } from "@/features/home/home-review-panel";
+import { ensureAlbumStationReviews } from "@/lib/station-reviews";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export const metadata = {
@@ -35,7 +36,9 @@ export default async function DashboardPage() {
 
   const { data: albumSubmission } = await supabase
     .from("submissions")
-    .select("id, title, status, updated_at, payment_status")
+    .select(
+      "id, title, artist_name, status, updated_at, payment_status, package:packages ( name, station_count )",
+    )
     .eq("user_id", user.id)
     .eq("type", "ALBUM")
     .order("updated_at", { ascending: false })
@@ -44,7 +47,7 @@ export default async function DashboardPage() {
 
   const { data: mvSubmission } = await supabase
     .from("submissions")
-    .select("id, title, status, updated_at, payment_status, type")
+    .select("id, title, artist_name, status, updated_at, payment_status, type")
     .eq("user_id", user.id)
     .in("type", ["MV_DISTRIBUTION", "MV_BROADCAST"])
     .order("updated_at", { ascending: false })
@@ -55,6 +58,15 @@ export default async function DashboardPage() {
   let mvStations: Array<{ id: string; status: string; updated_at: string; station?: { name?: string | null } | null }> = [];
 
   if (albumSubmission) {
+    const packageInfo = Array.isArray(albumSubmission.package)
+      ? albumSubmission.package[0]
+      : albumSubmission.package;
+    await ensureAlbumStationReviews(
+      supabase,
+      albumSubmission.id,
+      packageInfo?.station_count ?? null,
+      packageInfo?.name ?? null,
+    );
     const { data: albumReviews } = await supabase
       .from("station_reviews")
       .select("id, status, updated_at, station:stations ( name )")

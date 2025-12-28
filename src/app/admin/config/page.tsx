@@ -9,7 +9,7 @@ import {
   upsertSpellcheckTermFormAction,
   upsertStationFormAction,
 } from "@/features/admin/actions";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { syncAlbumStationCatalog } from "@/lib/station-reviews";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export const metadata = {
@@ -77,7 +77,7 @@ const albumStationCodeSet = new Set(albumStationCodes);
 
 export default async function AdminConfigPage() {
   const supabase = await createServerSupabase();
-  const admin = createAdminClient();
+  await syncAlbumStationCatalog(supabase);
   const { data: packages } = await supabase
     .from("packages")
     .select(
@@ -92,12 +92,12 @@ export default async function AdminConfigPage() {
     .eq("is_active", true)
     .order("name", { ascending: true });
 
-  const { data: profanityTerms } = await admin
+  const { data: profanityTerms } = await supabase
     .from("profanity_terms")
     .select("id, term, language, is_active, created_at")
     .order("created_at", { ascending: false });
 
-  const { data: spellcheckTerms } = await admin
+  const { data: spellcheckTerms } = await supabase
     .from("spellcheck_terms")
     .select("id, from_text, to_text, language, is_active, created_at")
     .order("created_at", { ascending: false });

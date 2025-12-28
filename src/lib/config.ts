@@ -8,7 +8,7 @@ export const APP_CONFIG = {
   bankAccount: process.env.NEXT_PUBLIC_BANK_ACCOUNT ?? "351901-04-227106",
   bankHolder: process.env.NEXT_PUBLIC_BANK_HOLDER ?? "송재현(영포에버)",
   bankLink: process.env.NEXT_PUBLIC_BANK_LINK ?? "",
-  businessName: process.env.NEXT_PUBLIC_BUSINESS_NAME ?? "온사이드",
+  businessName: process.env.NEXT_PUBLIC_BUSINESS_NAME ?? "영포에버",
   businessRep: process.env.NEXT_PUBLIC_BUSINESS_REP ?? "정근영",
   businessAddress:
     process.env.NEXT_PUBLIC_BUSINESS_ADDRESS ??
@@ -16,7 +16,7 @@ export const APP_CONFIG = {
   businessRegNo:
     process.env.NEXT_PUBLIC_BUSINESS_REG_NO ?? "110-21-24454",
   businessMailOrderNo:
-    process.env.NEXT_PUBLIC_BUSINESS_MAIL_ORDER_NO ?? "일반과세자",
+    process.env.NEXT_PUBLIC_BUSINESS_MAIL_ORDER_NO ?? "2015-서울은평-0095",
   privacyOfficer: process.env.NEXT_PUBLIC_PRIVACY_OFFICER ?? "송재현",
   hostingProvider:
     process.env.NEXT_PUBLIC_HOSTING_PROVIDER ?? "(주)가비아인터넷서비스",

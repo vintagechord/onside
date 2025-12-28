@@ -101,9 +101,6 @@ export function ChatbotWidget() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-                  Onside FAQ
-                </p>
                 <p className="text-sm font-semibold text-foreground">
                   자주 묻는 질문
                 </p>

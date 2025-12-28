@@ -3,7 +3,11 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-export function TrackLookupForm() {
+export function TrackLookupForm({
+  onSuccess,
+}: {
+  onSuccess?: () => void;
+}) {
   const router = useRouter();
   const [token, setToken] = React.useState("");
   const [error, setError] = React.useState("");
@@ -16,6 +20,7 @@ export function TrackLookupForm() {
       return;
     }
     setError("");
+    onSuccess?.();
     router.push(`/track/${encodeURIComponent(value)}`);
   };
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { StripAdBanner } from "@/components/site/strip-ad-banner";
 import { ScrollRevealObserver } from "@/components/scroll-reveal-observer";
 import { HomeReviewPanel } from "@/features/home/home-review-panel";
+import { ensureAlbumStationReviews } from "@/lib/station-reviews";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 const heroCtas = [
@@ -176,10 +177,10 @@ const serviceCards = [
 ];
 
 const processStepTones = [
-  "border-black bg-black text-white",
-  "border-black bg-black text-white",
-  "border-black bg-black text-white",
-  "border-black bg-black text-white",
+  "border-black bg-gradient-to-br from-[#0f0f0f] via-[#1a1a1a] to-[#2a2a2a] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
+  "border-black bg-gradient-to-br from-[#121212] via-[#1c1c1c] to-[#2b2b2b] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
+  "border-black bg-gradient-to-br from-[#141414] via-[#1f1f1f] to-[#303030] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
+  "border-black bg-gradient-to-br from-[#161616] via-[#222222] to-[#333333] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
 ];
 
 const serviceCardTones = [
@@ -278,6 +279,7 @@ export default async function Home() {
   const sampleAlbum = {
     id: "sample-album",
     title: "샘플 앨범 심의",
+    artist_name: "온사이드",
     status: "IN_PROGRESS",
     payment_status: "PAID",
     updated_at: new Date().toISOString(),
@@ -285,6 +287,7 @@ export default async function Home() {
   const sampleMv = {
     id: "sample-mv",
     title: "샘플 MV 심의",
+    artist_name: "온사이드",
     status: "WAITING_PAYMENT",
     payment_status: "PAYMENT_PENDING",
     updated_at: new Date().toISOString(),
@@ -315,7 +318,9 @@ export default async function Home() {
   if (user) {
     const { data: albumData } = await supabase
       .from("submissions")
-      .select("id, title, status, updated_at, payment_status")
+      .select(
+        "id, title, artist_name, status, updated_at, payment_status, package:packages ( name, station_count )",
+      )
       .eq("user_id", user.id)
       .eq("type", "ALBUM")
       .order("updated_at", { ascending: false })
@@ -324,7 +329,7 @@ export default async function Home() {
 
     const { data: mvData } = await supabase
       .from("submissions")
-      .select("id, title, status, updated_at, payment_status, type")
+      .select("id, title, artist_name, status, updated_at, payment_status, type")
       .eq("user_id", user.id)
       .in("type", ["MV_DISTRIBUTION", "MV_BROADCAST"])
       .order("updated_at", { ascending: false })
@@ -335,6 +340,15 @@ export default async function Home() {
     mvSubmission = mvData ?? null;
 
     if (albumSubmission) {
+      const packageInfo = Array.isArray(albumSubmission.package)
+        ? albumSubmission.package[0]
+        : albumSubmission.package;
+      await ensureAlbumStationReviews(
+        supabase,
+        albumSubmission.id,
+        packageInfo?.station_count ?? null,
+        packageInfo?.name ?? null,
+      );
       const { data: albumReviews } = await supabase
         .from("station_reviews")
         .select("id, status, updated_at, station:stations ( name )")

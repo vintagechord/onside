@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { ensureAlbumStationReviews } from "@/lib/station-reviews";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -12,6 +13,11 @@ export type SubmissionActionState = {
 };
 
 export type RatingFileActionState = {
+  error?: string;
+  url?: string;
+};
+
+export type SubmissionFileUrlActionState = {
   error?: string;
   url?: string;
 };
@@ -189,7 +195,7 @@ const resolveAlbumStationIds = async (
 
   const { data: packageRow, error: packageError } = await db
     .from("packages")
-    .select("station_count")
+    .select("station_count, name")
     .eq("id", packageId)
     .maybeSingle();
 
@@ -197,7 +203,20 @@ const resolveAlbumStationIds = async (
     return { stationIds: [], missingCodes: [] as string[] };
   }
 
-  const expectedCodes = albumStationCodesByCount[packageRow.station_count];
+  let resolvedCount = packageRow.station_count ?? null;
+  if (!resolvedCount && packageRow.name) {
+    const match = packageRow.name.match(/(\d+)/);
+    if (match) {
+      const parsed = Number(match[1]);
+      if (Number.isFinite(parsed)) {
+        resolvedCount = parsed;
+      }
+    }
+  }
+
+  const expectedCodes = resolvedCount
+    ? albumStationCodesByCount[resolvedCount]
+    : null;
   if (!expectedCodes || expectedCodes.length === 0) {
     return { stationIds: [], missingCodes: [] as string[] };
   }
@@ -400,6 +419,12 @@ const ratingFileSchema = z.object({
   guestToken: z.string().min(8).optional(),
 });
 
+const submissionFileUrlSchema = z.object({
+  submissionId: z.string().uuid(),
+  fileId: z.string().uuid(),
+  guestToken: z.string().min(8).optional(),
+});
+
 const isMvSubmissionType = (type: string) =>
   type === "MV_BROADCAST" || type === "MV_DISTRIBUTION";
 
@@ -485,6 +510,84 @@ export async function getMvRatingFileUrlAction(
   return { url: data.signedUrl };
 }
 
+export async function getSubmissionFileUrlAction(
+  payload: z.infer<typeof submissionFileUrlSchema>,
+): Promise<SubmissionFileUrlActionState> {
+  const parsed = submissionFileUrlSchema.safeParse(payload);
+  if (!parsed.success) {
+    return { error: "파일 정보를 확인해주세요." };
+  }
+
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError && !isMissingSessionError(userError)) {
+    return { error: "로그인 정보를 확인할 수 없습니다." };
+  }
+
+  if (user) {
+    const { data: fileRow } = await supabase
+      .from("submission_files")
+      .select("file_path")
+      .eq("id", parsed.data.fileId)
+      .eq("submission_id", parsed.data.submissionId)
+      .maybeSingle();
+
+    if (!fileRow?.file_path) {
+      return { error: "파일을 찾을 수 없습니다." };
+    }
+
+    const { data, error } = await supabase.storage
+      .from("submissions")
+      .createSignedUrl(fileRow.file_path, 60 * 10);
+
+    if (error || !data?.signedUrl) {
+      return { error: "다운로드 링크를 생성할 수 없습니다." };
+    }
+
+    return { url: data.signedUrl };
+  }
+
+  if (!parsed.data.guestToken) {
+    return { error: "접근 권한이 없습니다." };
+  }
+
+  const admin = createAdminClient();
+  const { data: submission } = await admin
+    .from("submissions")
+    .select("id, guest_token")
+    .eq("id", parsed.data.submissionId)
+    .maybeSingle();
+
+  if (!submission || submission.guest_token !== parsed.data.guestToken) {
+    return { error: "접근 권한이 없습니다." };
+  }
+
+  const { data: fileRow } = await admin
+    .from("submission_files")
+    .select("file_path")
+    .eq("id", parsed.data.fileId)
+    .eq("submission_id", parsed.data.submissionId)
+    .maybeSingle();
+
+  if (!fileRow?.file_path) {
+    return { error: "파일을 찾을 수 없습니다." };
+  }
+
+  const { data, error } = await admin.storage
+    .from("submissions")
+    .createSignedUrl(fileRow.file_path, 60 * 10);
+
+  if (error || !data?.signedUrl) {
+    return { error: "다운로드 링크를 생성할 수 없습니다." };
+  }
+
+  return { url: data.signedUrl };
+}
+
 export async function saveAlbumSubmissionAction(
   payload: z.infer<typeof albumSubmissionSchema>,
 ): Promise<SubmissionActionState> {
@@ -521,17 +624,21 @@ export async function saveAlbumSubmissionAction(
   const hasPackage = Boolean(parsed.data.packageId);
   let amountKrw = parsed.data.amountKrw ?? 0;
   const isOneClick = parsed.data.isOneClick ?? false;
+  let packageStationCount: number | null = null;
+  let packageName: string | null = null;
 
   if (hasPackage && parsed.data.packageId) {
     const { data: selectedPackage, error: packageError } = await db
       .from("packages")
-      .select("price_krw")
+      .select("price_krw, station_count, name")
       .eq("id", parsed.data.packageId)
       .maybeSingle();
 
     if (packageError || !selectedPackage) {
       return { error: "패키지 정보를 확인할 수 없습니다." };
     }
+    packageStationCount = selectedPackage.station_count ?? null;
+    packageName = selectedPackage.name ?? null;
     if (amountKrw <= 0) {
       amountKrw = selectedPackage.price_krw;
     }
@@ -729,7 +836,7 @@ export async function saveAlbumSubmissionAction(
 
     if (stationIds.length === 0) {
       const resolved = await resolveAlbumStationIds(
-        adminDb,
+        db,
         parsed.data.packageId,
       );
       stationIds = resolved.stationIds;
@@ -737,23 +844,27 @@ export async function saveAlbumSubmissionAction(
     }
 
     if (stationIds.length === 0) {
-      const { data: packageStations, error: stationError } = await adminDb
+      const { data: packageStations, error: stationError } = await db
         .from("package_stations")
         .select("station_id")
         .eq("package_id", parsed.data.packageId);
 
       if (stationError) {
-        return { error: "방송국 정보를 불러올 수 없습니다." };
+        console.warn("Failed to load package stations", stationError);
+      } else {
+        stationIds =
+          packageStations
+            ?.map((station) => station.station_id)
+            .filter((id): id is string => Boolean(id)) ?? [];
       }
-
-      stationIds =
-        packageStations
-          ?.map((station) => station.station_id)
-          .filter((id): id is string => Boolean(id)) ?? [];
     }
 
     if (stationIds.length === 0) {
-      return { error: "방송국 정보를 불러올 수 없습니다." };
+      console.warn("No stations resolved for album submission", {
+        submissionId: parsed.data.submissionId,
+        packageId: parsed.data.packageId,
+        missingCodes,
+      });
     }
 
     if (missingCodes.length > 0) {
@@ -764,15 +875,24 @@ export async function saveAlbumSubmissionAction(
       });
     }
 
-    const { error: reviewError } = await ensureStationReviews(
-      adminDb,
-      parsed.data.submissionId,
-      stationIds,
-    );
+    if (stationIds.length > 0) {
+      const { error: reviewError } = await ensureStationReviews(
+        db,
+        parsed.data.submissionId,
+        stationIds,
+      );
 
-    if (reviewError) {
-      return { error: "방송국 진행 정보를 저장할 수 없습니다." };
+      if (reviewError) {
+        return { error: "방송국 진행 정보를 저장할 수 없습니다." };
+      }
     }
+
+    await ensureAlbumStationReviews(
+      db,
+      parsed.data.submissionId,
+      packageStationCount,
+      packageName,
+    );
   }
 
   const eventMessage =
@@ -1001,7 +1121,7 @@ export async function saveMvSubmissionAction(
     let stationIds = parsed.data.selectedStationIds ?? [];
 
     if (stationIds.length === 0 && parsed.data.packageId) {
-      const { data: packageStations, error: stationError } = await adminDb
+      const { data: packageStations, error: stationError } = await db
         .from("package_stations")
         .select("station_id")
         .eq("package_id", parsed.data.packageId);
@@ -1017,7 +1137,7 @@ export async function saveMvSubmissionAction(
     }
 
     const { error: reviewError } = await ensureStationReviews(
-      adminDb,
+      db,
       parsed.data.submissionId,
       stationIds,
     );

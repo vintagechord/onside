@@ -26,6 +26,7 @@ export default async function KaraokeRequestPage() {
     id: string;
     title: string;
     artist: string | null;
+    file_path?: string | null;
     status: string;
     created_at: string;
     updated_at: string | null;
@@ -40,7 +41,7 @@ export default async function KaraokeRequestPage() {
 
     const { data: requestRows } = await supabase
       .from("karaoke_requests")
-      .select("id, title, artist, status, created_at, updated_at")
+      .select("id, title, artist, file_path, status, created_at, updated_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     requests = requestRows ?? [];

@@ -85,26 +85,37 @@ const onlineOptionDetails: Record<string, { title: string; note: string }> = {
   },
 };
 
-const onlineOptionConfirmMessages: Record<string, string> = {
-  MBC: [
-    "MBC 뮤직비디오 심의 안내",
-    "2020.06.25부터 MBC M (<쇼챔피언>, <주간아이돌> 등) 방송되는 아티스트 M/V에 한해 심의 가능.",
-    "심의 영상은 온라인용으로 사용 가능합니다.",
-    "심의 완료 후 등급분류 + MBC 로고 삽입본 사용 가능.",
-    "파일 용량 2GB 미만.",
-    "",
-    "위 내용을 확인하셨다면 [확인]을 눌러주세요.",
-  ].join("\n"),
-  MNET: [
-    "Mnet 뮤직비디오 심의 안내",
-    "자사 편성 계획 M/V 외 등급심의가 불가합니다. 방송 일정이 있는 경우만 문의 주세요.",
-    "심의 완료 시 등급분류 + Mnet 로고를 삽입하여 온라인 유통이 가능합니다.",
-    "제출 규격: WMV 또는 MPG",
-    "파일 용량 1GB 미만.",
-    "",
-    "위 내용을 확인하셨다면 [확인]을 눌러주세요.",
-  ].join("\n"),
+const onlineOptionConfirmDetails: Record<
+  string,
+  { title: string; lines: string[] }
+> = {
+  MBC: {
+    title: "MBC 뮤직비디오 심의 안내",
+    lines: [
+      "2020.06.25부터 MBC M (<쇼챔피언>, <주간아이돌> 등) 방송되는 아티스트 M/V에 한해 심의 가능.",
+      "심의 영상은 온라인용으로 사용 가능합니다.",
+      "심의 완료 후 등급분류 + MBC 로고 삽입본 사용 가능.",
+      "파일 용량 2GB 미만.",
+    ],
+  },
+  MNET: {
+    title: "Mnet 뮤직비디오 심의 안내",
+    lines: [
+      "자사 편성 계획 M/V 외 등급심의가 불가합니다. 방송 일정이 있는 경우만 문의 주세요.",
+      "심의 완료 시 등급분류 + Mnet 로고를 삽입하여 온라인 유통이 가능합니다.",
+      "제출 규격: WMV 또는 MPG",
+      "파일 용량 1GB 미만.",
+    ],
+  },
+  ETN: {
+    title: "ETN 입고 옵션 안내",
+    lines: [
+      "온라인 심의 완료된 영상에 한하여 ETN 방송 '입고'만 가능합니다.",
+    ],
+  },
 };
+const onlineOptionConfirmNote =
+  "위 내용을 확인하셨다면 [확인]을 눌러주세요.";
 
 const mvOptionToneClasses = [
   "border-[#7ad97a] bg-[#8fe38f] text-slate-900",
@@ -172,6 +183,11 @@ export function MvWizard({
   const [fileDigest, setFileDigest] = React.useState("");
   const [isSaving, setIsSaving] = React.useState(false);
   const [notice, setNotice] = React.useState<SubmissionActionState>({});
+  const [confirmModal, setConfirmModal] = React.useState<{
+    code: string;
+    title: string;
+    lines: string[];
+  } | null>(null);
   const [completionId, setCompletionId] = React.useState<string | null>(null);
   const [completionGuestToken, setCompletionGuestToken] = React.useState<
     string | null
@@ -284,6 +300,30 @@ export function MvWizard({
     return items;
   }, [mvType, onlineBaseSelected, onlineOptions, tvStations, stationMap]);
 
+  const selectedStepTone = React.useMemo(() => {
+    if (mvType === "MV_BROADCAST") {
+      const selectedCode = tvStationCodes.find((code) =>
+        tvStations.includes(code),
+      );
+      if (!selectedCode) return null;
+      const index = tvStationCodes.indexOf(selectedCode);
+      return mvOptionToneClasses[index % mvOptionToneClasses.length] ?? null;
+    }
+
+    if (onlineBaseSelected) {
+      return mvOptionToneClasses[0] ?? null;
+    }
+    const selectedCode = onlineOptionCodes.find((code) =>
+      onlineOptions.includes(code),
+    );
+    if (!selectedCode) return null;
+    const index = onlineOptionCodes.indexOf(selectedCode);
+    return mvOptionToneClasses[(index + 1) % mvOptionToneClasses.length] ?? null;
+  }, [mvType, onlineBaseSelected, onlineOptions, tvStations]);
+
+  const activeStepTone =
+    selectedStepTone ?? "border-amber-200 bg-amber-200 text-slate-900";
+
   const stepLabels = (
     <div className="grid gap-3 md:grid-cols-4">
       {steps.map((label, index) => {
@@ -293,7 +333,7 @@ export function MvWizard({
             key={label}
             className={`rounded-2xl border px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] ${
               active
-                ? "border-amber-200 bg-amber-200 text-slate-900"
+                ? activeStepTone
                 : "border-border/60 bg-background text-muted-foreground"
             }`}
           >
@@ -388,23 +428,30 @@ export function MvWizard({
     );
   };
 
-  const confirmOnlineOptionSelection = (code: string) => {
-    const message = onlineOptionConfirmMessages[code];
-    if (!message) return true;
-    if (typeof window === "undefined") return true;
-    return window.confirm(message);
+  const toggleOnlineOption = (code: string) => {
+    if (onlineOptions.includes(code)) {
+      setOnlineOptions((prev) => prev.filter((item) => item !== code));
+      return;
+    }
+    const details = onlineOptionConfirmDetails[code];
+    if (!details) {
+      setOnlineOptions((prev) => [...prev, code]);
+      return;
+    }
+    setConfirmModal({ code, title: details.title, lines: details.lines });
   };
 
-  const toggleOnlineOption = (code: string) => {
-    setOnlineOptions((prev) => {
-      if (prev.includes(code)) {
-        return prev.filter((item) => item !== code);
-      }
-      if (!confirmOnlineOptionSelection(code)) {
-        return prev;
-      }
-      return [...prev, code];
-    });
+  const handleConfirmOnlineOption = () => {
+    if (!confirmModal) return;
+    const nextCode = confirmModal.code;
+    setOnlineOptions((prev) =>
+      prev.includes(nextCode) ? prev : [...prev, nextCode],
+    );
+    setConfirmModal(null);
+  };
+
+  const handleCancelOnlineOption = () => {
+    setConfirmModal(null);
   };
 
   const createSignedUpload = async (fileName: string) => {
@@ -666,6 +713,52 @@ export function MvWizard({
 
   return (
     <div className="space-y-8">
+      {confirmModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6"
+          onClick={handleCancelOnlineOption}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-xl rounded-[28px] border border-border/60 bg-background p-6 text-foreground shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              안내
+            </p>
+            <h3 className="mt-2 text-lg font-semibold">
+              {confirmModal.title}
+            </h3>
+            <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
+              {confirmModal.lines.map((line) => (
+                <li key={line} className="list-disc pl-5 leading-relaxed">
+                  {line}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-xs font-semibold text-foreground">
+              {onlineOptionConfirmNote}
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleCancelOnlineOption}
+                className="rounded-full border border-border/70 bg-background px-4 py-2 text-xs font-semibold text-foreground transition hover:border-foreground"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmOnlineOption}
+                className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5 hover:bg-amber-200 hover:text-slate-900"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {stepLabels}
 
       {step === 1 && (
@@ -837,12 +930,12 @@ export function MvWizard({
                   {formatCurrency(totalAmount)}원
                 </p>
               </div>
-              <span className="rounded-full border border-border/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                비회원 결제 가능
-              </span>
             </div>
             <p className="mt-2 text-xs text-muted-foreground text-right">
               카드 결제 또는 무통장 입금 모두 가능합니다.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground text-right">
+              비회원 결제 가능
             </p>
           </div>
           <div className="flex justify-end">
@@ -1521,9 +1614,7 @@ export function MvWizard({
           {completionId && !shouldShowGuestLookup && (
             <button
               type="button"
-              onClick={() =>
-                router.push(`/dashboard/submissions/${completionId}`)
-              }
+              onClick={() => router.push("/dashboard")}
               className="mt-6 rounded-full bg-foreground px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-background transition hover:-translate-y-0.5"
             >
               진행 상황 보기

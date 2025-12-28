@@ -1,8 +1,19 @@
+const cleanEnvValue = (value?: string) => {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
 export function getSupabaseEnv() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const isServer = typeof window === "undefined";
+  const url =
+    (isServer ? cleanEnvValue(process.env.SUPABASE_URL) : undefined) ??
+    cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const anonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    (isServer ? cleanEnvValue(process.env.SUPABASE_ANON_KEY) : undefined) ??
+    cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ??
+    cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) ??
+    (isServer ? cleanEnvValue(process.env.SUPABASE_PUBLISHABLE_KEY) : undefined);
 
   if (!url || !anonKey) {
     throw new Error("Missing Supabase environment variables.");
@@ -12,7 +23,10 @@ export function getSupabaseEnv() {
 }
 
 export function getServiceRoleKey() {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey =
+    cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY) ??
+    cleanEnvValue(process.env.SUPABASE_SERVICE_KEY) ??
+    cleanEnvValue(process.env.SUPABASE_SECRET_KEY);
 
   if (!serviceKey) {
     throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY.");

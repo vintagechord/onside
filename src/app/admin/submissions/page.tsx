@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { formatDateTime } from "@/lib/format";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 export const metadata = {
   title: "접수 관리",
@@ -56,36 +56,54 @@ export default async function AdminSubmissionsPage({
     to?: string;
   };
 }) {
-  const supabase = createAdminClient();
-  let query = supabase
-    .from("submissions")
-    .select(
-      "id, title, artist_name, status, payment_status, type, created_at, updated_at, guest_name, amount_krw, package:packages ( name )",
-    )
-    .order("created_at", { ascending: false });
+  const supabase = await createServerSupabase();
+  const baseSelect =
+    "id, title, artist_name, status, payment_status, type, created_at, updated_at, amount_krw, package:packages ( name )";
+  const guestSelect = `${baseSelect}, guest_name`;
 
-  if (searchParams.status) {
-    query = query.eq("status", searchParams.status);
-  }
-  if (searchParams.payment) {
-    query = query.eq("payment_status", searchParams.payment);
-  }
-  if (searchParams.type) {
-    query = query.eq("type", searchParams.type);
-  }
-  if (searchParams.q) {
-    query = query.or(
-      `title.ilike.%${searchParams.q}%,artist_name.ilike.%${searchParams.q}%`,
-    );
-  }
-  if (searchParams.from) {
-    query = query.gte("created_at", `${searchParams.from}T00:00:00.000Z`);
-  }
-  if (searchParams.to) {
-    query = query.lte("created_at", `${searchParams.to}T23:59:59.999Z`);
-  }
+  const buildQuery = (selectFields: string) => {
+    let query = supabase
+      .from("submissions")
+      .select(selectFields)
+      .order("created_at", { ascending: false });
 
-  const { data: submissions } = await query;
+    if (searchParams.status) {
+      query = query.eq("status", searchParams.status);
+    }
+    if (searchParams.payment) {
+      query = query.eq("payment_status", searchParams.payment);
+    }
+    if (searchParams.type) {
+      query = query.eq("type", searchParams.type);
+    }
+    if (searchParams.q) {
+      query = query.or(
+        `title.ilike.%${searchParams.q}%,artist_name.ilike.%${searchParams.q}%`,
+      );
+    }
+    if (searchParams.from) {
+      query = query.gte("created_at", `${searchParams.from}T00:00:00.000Z`);
+    }
+    if (searchParams.to) {
+      query = query.lte("created_at", `${searchParams.to}T23:59:59.999Z`);
+    }
+
+    return query;
+  };
+
+  let hasGuestColumns = true;
+  let { data: submissions, error: submissionsError } =
+    await buildQuery(guestSelect);
+
+  if (
+    submissionsError?.message?.toLowerCase().includes("guest_name") ||
+    submissionsError?.code === "42703"
+  ) {
+    hasGuestColumns = false;
+    const fallback = await buildQuery(baseSelect);
+    submissions = fallback.data ?? null;
+    submissionsError = fallback.error ?? null;
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-12">
@@ -170,6 +188,11 @@ export default async function AdminSubmissionsPage({
       </form>
 
       <div className="mt-6 space-y-3">
+        {submissionsError && (
+          <div className="rounded-2xl border border-dashed border-red-500/40 bg-red-500/10 px-4 py-3 text-xs text-red-600">
+            접수 목록을 불러오지 못했습니다. ({submissionsError.message})
+          </div>
+        )}
         {submissions && submissions.length > 0 ? (
           submissions.map((submission) => {
             const packageInfo = Array.isArray(submission.package)
@@ -188,7 +211,7 @@ export default async function AdminSubmissionsPage({
                   <p className="text-xs text-muted-foreground">
                     {submission.artist_name || "아티스트 미입력"} ·{" "}
                     {labelMap.type[submission.type] ?? submission.type}
-                    {submission.guest_name ? " · 비회원" : ""}
+                    {hasGuestColumns && submission.guest_name ? " · 비회원" : ""}
                   </p>
                 </div>
                 <div className="text-xs text-muted-foreground">

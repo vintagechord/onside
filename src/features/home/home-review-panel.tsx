@@ -16,6 +16,7 @@ type StationItem = {
 type SubmissionSummary = {
   id: string;
   title: string | null;
+  artist_name?: string | null;
   status: string;
   updated_at: string;
   payment_status?: string | null;
@@ -124,6 +125,23 @@ function getStageStatus(submission?: SubmissionSummary | null) {
   return stageStatusMap.payment;
 }
 
+function getSubmissionLabels(submission?: SubmissionSummary | null) {
+  if (!submission) {
+    return {
+      artist: "아티스트 미입력",
+      title: "제목 미입력",
+      summary: "나의 심의",
+    };
+  }
+  const artist = submission.artist_name?.trim() || "아티스트 미입력";
+  const title = submission.title?.trim() || "제목 미입력";
+  return {
+    artist,
+    title,
+    summary: `${artist} - ${title}`,
+  };
+}
+
 export function HomeReviewPanel({
   isLoggedIn,
   albumSubmission,
@@ -185,6 +203,7 @@ export function HomeReviewPanel({
   const active = tab === "album" ? albumState : mvState;
   const activeSubmission = active.submission;
   const activeStations = active.stations;
+  const submissionLabels = getSubmissionLabels(activeSubmission);
   const isLive =
     (forceLiveBadge && isLoggedIn) ||
     (isLoggedIn &&
@@ -207,7 +226,7 @@ export function HomeReviewPanel({
         async () => {
           const { data } = await supabase
             .from("submissions")
-            .select("id, title, status, updated_at, payment_status")
+            .select("id, title, artist_name, status, updated_at, payment_status")
             .eq("id", activeSubmission.id)
             .maybeSingle();
           if (!data) return;
@@ -350,7 +369,11 @@ export function HomeReviewPanel({
   return (
     <div className="min-w-0 w-full rounded-[28px] border border-amber-200/60 bg-gradient-to-br from-[#fff2d6]/90 via-white/80 to-[#ffe3a3]/90 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)] dark:border-white/10 dark:from-[#1a1a1a]/70 dark:via-[#111111]/80 dark:to-[#1e1a12]/80 lg:min-h-[520px]">
       <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-muted-foreground">
-        <span>나의 심의</span>
+        <span>
+          {activeSubmission
+            ? `${submissionLabels.summary} 심의`
+            : "나의 심의"}
+        </span>
         <span className="inline-flex items-center gap-2">
           {isLoggedIn ? (
             <>
@@ -401,7 +424,7 @@ export function HomeReviewPanel({
             <div className="mt-3 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <p className="text-sm font-semibold text-foreground">
-                  {activeSubmission.title || "제목 미입력"}
+                  {submissionLabels.summary}
                 </p>
                 {currentSubmissionStatus ? (
                   <span

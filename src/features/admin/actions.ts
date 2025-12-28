@@ -4,7 +4,6 @@ import { z } from "zod";
 
 import { revalidatePath } from "next/cache";
 
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export type AdminActionState = {
@@ -43,6 +42,12 @@ const submissionStatusSchema = z.object({
   status: submissionStatusEnum,
   adminMemo: z.string().optional(),
   mvRatingFilePath: z.string().optional(),
+});
+
+const submissionBasicInfoSchema = z.object({
+  submissionId: z.string().uuid(),
+  title: z.string().optional(),
+  artistName: z.string().optional(),
 });
 
 const paymentStatusSchema = z.object({
@@ -110,18 +115,6 @@ const sanitizeFileName = (name: string) =>
     .replace(/_+/g, "_")
     .slice(0, 120);
 
-const ensureBannerBucket = async (
-  admin: ReturnType<typeof createAdminClient>,
-) => {
-  const { data } = await admin.storage.listBuckets();
-  const exists = data?.some((bucket) => bucket.name === bannerBucket);
-  if (exists) {
-    await admin.storage.updateBucket(bannerBucket, { public: true });
-    return;
-  }
-  await admin.storage.createBucket(bannerBucket, { public: true });
-};
-
 const guessImageContentType = (file: File) => {
   if (file.type) {
     return file.type;
@@ -150,8 +143,7 @@ const uploadBannerImage = async (file: File) => {
     return { error: "이미지 파일만 업로드 가능합니다." };
   }
 
-  const admin = createAdminClient();
-  await ensureBannerBucket(admin);
+  const admin = await createServerSupabase();
   const safeName = sanitizeFileName(file.name || "banner.jpg");
   const path = `${bannerFolder}/${Date.now()}-${safeName}`;
   const arrayBuffer = await file.arrayBuffer();
@@ -246,6 +238,71 @@ export async function updateSubmissionStatusFormAction(
   if (result.error) {
     console.error(result.error);
   }
+}
+
+export async function updateSubmissionBasicInfoAction(
+  payload: z.infer<typeof submissionBasicInfoSchema>,
+): Promise<AdminActionState> {
+  const parsed = submissionBasicInfoSchema.safeParse(payload);
+  if (!parsed.success) {
+    return { error: "입력값을 확인해주세요." };
+  }
+
+  const title = parsed.data.title?.trim() ?? "";
+  const artistName = parsed.data.artistName?.trim() ?? "";
+  if (!title && !artistName) {
+    return { error: "아티스트명 또는 제목을 입력해주세요." };
+  }
+
+  const updatePayload: {
+    title?: string;
+    artist_name?: string;
+  } = {};
+  if (title) {
+    updatePayload.title = title;
+  }
+  if (artistName) {
+    updatePayload.artist_name = artistName;
+  }
+
+  const supabase = await createServerSupabase();
+  const { error } = await supabase
+    .from("submissions")
+    .update(updatePayload)
+    .eq("id", parsed.data.submissionId);
+
+  if (error) {
+    return { error: "아티스트/앨범 정보 업데이트에 실패했습니다." };
+  }
+
+  await insertEvent(
+    parsed.data.submissionId,
+    "관리자 정보 수정: 아티스트/앨범",
+    "ADMIN_BASIC_INFO",
+  );
+
+  return { message: "아티스트/앨범 정보가 업데이트되었습니다." };
+}
+
+export async function updateSubmissionBasicInfoFormAction(
+  formData: FormData,
+): Promise<void> {
+  const submissionId = String(formData.get("submissionId") ?? "");
+  const result = await updateSubmissionBasicInfoAction({
+    submissionId,
+    title: String(formData.get("title") ?? ""),
+    artistName: String(formData.get("artistName") ?? ""),
+  });
+
+  if (result.error) {
+    console.error(result.error);
+    return;
+  }
+
+  revalidatePath("/admin/submissions");
+  revalidatePath(`/admin/submissions/${submissionId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/history");
 }
 
 export async function updatePaymentStatusAction(
@@ -570,7 +627,7 @@ export async function upsertAdBannerAction(
     return { error: "배너 이미지를 입력하거나 업로드해주세요." };
   }
 
-  const supabase = createAdminClient();
+  const supabase = await createServerSupabase();
   const { error } = await supabase.from("ad_banners").upsert({
     id: parsed.data.id,
     title: parsed.data.title,
@@ -580,6 +637,13 @@ export async function upsertAdBannerAction(
   });
 
   if (error) {
+    const message = error.message?.toLowerCase() ?? "";
+    if (message.includes("ad_banners") && message.includes("schema cache")) {
+      return {
+        error:
+          "배너 테이블이 아직 생성되지 않았습니다. Supabase 마이그레이션을 실행해주세요.",
+      };
+    }
     return { error: "배너 저장에 실패했습니다." };
   }
 
@@ -624,10 +688,17 @@ export async function deleteAdBannerAction(
     return { error: "배너 ID를 확인해주세요." };
   }
 
-  const supabase = createAdminClient();
+  const supabase = await createServerSupabase();
   const { error } = await supabase.from("ad_banners").delete().eq("id", payload.id);
 
   if (error) {
+    const message = error.message?.toLowerCase() ?? "";
+    if (message.includes("ad_banners") && message.includes("schema cache")) {
+      return {
+        error:
+          "배너 테이블이 아직 생성되지 않았습니다. Supabase 마이그레이션을 실행해주세요.",
+      };
+    }
     return { error: "배너 삭제에 실패했습니다." };
   }
 
@@ -656,7 +727,7 @@ export async function upsertProfanityTermAction(
     return { error: "욕설/비속어 정보를 확인해주세요." };
   }
 
-  const supabase = createAdminClient();
+  const supabase = await createServerSupabase();
   const { error } = await supabase.from("profanity_terms").upsert({
     id: parsed.data.id,
     term: parsed.data.term.trim(),
@@ -698,7 +769,7 @@ export async function deleteProfanityTermAction(
     return { error: "욕설/비속어 ID를 확인해주세요." };
   }
 
-  const supabase = createAdminClient();
+  const supabase = await createServerSupabase();
   const { error } = await supabase
     .from("profanity_terms")
     .delete()
@@ -733,7 +804,7 @@ export async function upsertSpellcheckTermAction(
     return { error: "맞춤법 사전 정보를 확인해주세요." };
   }
 
-  const supabase = createAdminClient();
+  const supabase = await createServerSupabase();
   const { error } = await supabase.from("spellcheck_terms").upsert({
     id: parsed.data.id,
     from_text: parsed.data.fromText.trim(),
@@ -777,7 +848,7 @@ export async function deleteSpellcheckTermAction(
     return { error: "맞춤법 사전 ID를 확인해주세요." };
   }
 
-  const supabase = createAdminClient();
+  const supabase = await createServerSupabase();
   const { error } = await supabase
     .from("spellcheck_terms")
     .delete()
