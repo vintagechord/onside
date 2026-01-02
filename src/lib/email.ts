@@ -11,12 +11,12 @@ export async function sendWelcomeEmail(payload: WelcomeEmailPayload) {
     return { ok: false, skipped: true } as const;
   }
 
-  const name = payload.name?.trim() || "Onside";
+  const name = payload.name?.trim() || "GLIT";
   const body = {
     from,
     to: payload.email,
-    subject: "Welcome to Onside",
-    html: `<p>Hi ${name},</p><p>Thanks for signing up to Onside.</p><p>We'll keep you posted on your reviews.</p>`,
+    subject: "Welcome to GLIT",
+    html: `<p>Hi ${name},</p><p>Your release is now officially greenlit with GLIT.</p><p>Submit, track, and archive every review in one place — we'll keep you posted.</p>`,
   };
 
   try {

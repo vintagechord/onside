@@ -217,7 +217,7 @@ export function KaraokeForm({ userId }: { userId?: string | null }) {
           노래방 등록 신청하기
         </p>
         <p className="mt-3 text-sm">
-          태진/금영 등록을 온사이드가 대행합니다. 신청 후 진행상황 탭에서
+          태진/금영 등록을 글릿이 대행합니다. 신청 후 진행상황 탭에서
           단계별 진행을 확인할 수 있습니다.
         </p>
         <p className="mt-3 text-xs text-muted-foreground">

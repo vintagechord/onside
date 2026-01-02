@@ -13,13 +13,13 @@ const termsContent = `회원가입을 하기 전에 이용약관을 읽어보시
 (2014. 9. 19. 개정)
 
 
-제1조(목적) 이 약관은온사이드 회사(전자상거래 사업자)가 운영하는 온사이드 사이버 몰(이하 "몰"이라 한다)에서 제공하는 인터넷 관련 서비스(이하 "서비스"라 한다)를 이용함에 있어 사이버 몰과 이용자의 권리·의무 및 책임사항을 규정함을 목적으로 합니다.
+제1조(목적) 이 약관은 글릿(전자상거래 사업자, 이하 "회사")이 운영하는 GLIT 사이버 몰(이하 "몰"이라 한다)에서 제공하는 인터넷 관련 서비스(이하 "서비스"라 한다)를 이용함에 있어 사이버 몰과 이용자의 권리·의무 및 책임사항을 규정함을 목적으로 합니다.
 
 ※"PC통신, 무선 등을 이용하는 전자상거래에 대해서도 그 성질에 반하지 않는 한 이 약관을 준용합니다."
 
 제2조(정의)
 
-① "몰"이란 온사이드 회사가 재화 또는 용역(이하 "재화 등" 이라 함)을 이용자에게 제공하기 위하여 컴퓨터 등 정보통신설비를 이용하여 재화 등을 거래할 수 있도록 설정한 가상의 영업장을 말하며, 아울러 사이버몰을 운영하는 사업자의 의미로도 사용합니다.
+① "몰"이란 회사가 재화 또는 용역(이하 "재화 등" 이라 함)을 이용자에게 제공하기 위하여 컴퓨터 등 정보통신설비를 이용하여 재화 등을 거래할 수 있도록 설정한 가상의 영업장을 말하며, 아울러 GLIT 사이버몰을 운영하는 사업자의 의미로도 사용합니다.
 
 ② "이용자"란 "몰"에 접속하여 이 약관에 따라 "몰"이 제공하는 서비스를 받는 회원 및 비회원을 말합니다.
 
@@ -29,7 +29,7 @@ const termsContent = `회원가입을 하기 전에 이용약관을 읽어보시
 
 제3조 (약관 등의 명시와 설명 및 개정)
 
-① "몰"은 이 약관의 내용과 상호 및 대표자 성명, 영업소 소재지 주소(소비자의 불만을 처리할 수 있는 곳의 주소를 포함), 전화번호·모사전송번호·전자우편주소, 사업자등록번호, 통신판매업 신고번호, 개인정보관리책임자 등을 이용자가 쉽게 알 수 있도록 온사이드 사이버몰의 초기 서비스화면(전면)에 게시합니다. 다만, 약관의 내용은 이용자가 연결화면을 통하여 볼 수 있도록 할 수 있습니다.
+① "몰"은 이 약관의 내용과 상호 및 대표자 성명, 영업소 소재지 주소(소비자의 불만을 처리할 수 있는 곳의 주소를 포함), 전화번호·모사전송번호·전자우편주소, 사업자등록번호, 통신판매업 신고번호, 개인정보관리책임자 등을 이용자가 쉽게 알 수 있도록 GLIT 사이버몰의 초기 서비스화면(전면)에 게시합니다. 다만, 약관의 내용은 이용자가 연결화면을 통하여 볼 수 있도록 할 수 있습니다.
 
 ② "몰은 이용자가 약관에 동의하기에 앞서 약관에 정하여져 있는 내용 중 청약철회·배송책임·환불조건 등과 같은 중요한 내용을 이용자가 이해할 수 있도록 별도의 연결화면 또는 팝업화면 등을 제공하여 이용자의 확인을 구하여야 합니다.
 
@@ -252,7 +252,7 @@ const termsContent = `회원가입을 하기 전에 이용약관을 읽어보시
 
 ② "몰"과 이용자 간에 제기된 전자상거래 소송에는 한국법을 적용합니다.`;
 
-const privacyContent = `온사이드(이하 "회사"라 함)는 회사가 운영하는 onside17.com(이하 "사이트"라 함)를 이용하는 이용자들의 개인정보보호를 매우 중요시하며, 이용자가 회사의 웹서비스(이하 "서비스"라 함)를 이용함과 동시에 온라인상에서 회사에 제공한 개인정보가 보호 받을 수 있도록 최선을 다하고 있습니다. 이에 회사는 통신비밀보호법, 전기통신사업법, 정보통신망이용촉진등에관한법률 등 정보통신서비스제공자가 준수하여야 할 관련 법규상의 개인정보보호 규정 및 정보통신부가 제정한 개인정보보호지침을 준수하고 있습니다. 회사는 개인정보 보호정책을 통하여 이용자들이 제공하는 개인정보가 어떠한 용도와 방식으로 이용되고 있으며 개인정보보호를 위해 어떠한 조치가 취해지고 있는지 알려드립니다.
+const privacyContent = `글릿(이하 "회사"라 함)는 회사가 운영하는 GLIT 서비스(이하 "사이트"라 함)를 이용하는 이용자들의 개인정보보호를 매우 중요시하며, 이용자가 회사의 웹서비스(이하 "서비스"라 함)를 이용함과 동시에 온라인상에서 회사에 제공한 개인정보가 보호 받을 수 있도록 최선을 다하고 있습니다. 이에 회사는 통신비밀보호법, 전기통신사업법, 정보통신망이용촉진등에관한법률 등 정보통신서비스제공자가 준수하여야 할 관련 법규상의 개인정보보호 규정 및 정보통신부가 제정한 개인정보보호지침을 준수하고 있습니다. 회사는 개인정보 보호정책을 통하여 이용자들이 제공하는 개인정보가 어떠한 용도와 방식으로 이용되고 있으며 개인정보보호를 위해 어떠한 조치가 취해지고 있는지 알려드립니다.
 
 회사는 개인정보 보호정책을 사이트 첫 화면에 공개함으로써 이용자들이 언제나 용이하게 보실 수 있도록 조치하고 있습니다.
 
@@ -321,9 +321,15 @@ const partnershipContent = `제휴안내
 
 접수 방법
 아래의 이메일로 제휴 문의 바랍니다.
-onside17@daum.net`;
+${APP_CONFIG.supportEmail}`;
 
 export function SiteFooter() {
+  const contactPhone = "010-8436-9035";
+  const contactEmail = "help@vhouse.co.kr";
+  const bankName = "국민은행";
+  const bankAccount = "073001-04-276967";
+  const bankHolder = "빈티지하우스";
+
   const [activeModal, setActiveModal] = React.useState<
     "terms" | "privacy" | "partnership" | null
   >(null);
@@ -356,10 +362,10 @@ export function SiteFooter() {
               CS CENTER
             </p>
             <p className="text-2xl font-semibold text-black">
-              {APP_CONFIG.supportPhone}
+              {contactPhone}
             </p>
             <p className="text-base font-medium text-black">
-              이메일 {APP_CONFIG.supportEmail}
+              이메일 {contactEmail}
             </p>
             <p className="text-base font-medium text-black">
               상담시간 {APP_CONFIG.supportHours}
@@ -370,12 +376,12 @@ export function SiteFooter() {
               BANK INFO
             </p>
             <p className="text-base font-medium text-black">
-              {APP_CONFIG.bankName} {APP_CONFIG.bankAccount}
+              {bankName} {bankAccount}
             </p>
             <p className="text-base font-medium text-black">
               예금주:{" "}
               <span className="font-semibold text-black">
-                {APP_CONFIG.bankHolder}
+                {bankHolder}
               </span>
             </p>
             {APP_CONFIG.bankLink ? (
@@ -419,18 +425,18 @@ export function SiteFooter() {
           </button>
         </div>
 
-        <div className="space-y-2 pt-4 text-sm font-medium text-black">
-          <p>
-            회사명: {APP_CONFIG.businessName} · 대표자:{" "}
-            {APP_CONFIG.businessRep} · 주소: {APP_CONFIG.businessAddress} · 전화:{" "}
-            {APP_CONFIG.supportPhone} · 이메일: {APP_CONFIG.supportEmail}
-          </p>
-          <p>
-            사업자등록번호: {APP_CONFIG.businessRegNo} · 통신판매업신고번호:{" "}
-            {APP_CONFIG.businessMailOrderNo} · 개인정보 보호책임자:{" "}
-            {APP_CONFIG.privacyOfficer} · 호스팅 제공자:{" "}
-            {APP_CONFIG.hostingProvider}
-          </p>
+        <div className="space-y-3 pt-4 text-sm font-medium text-black">
+          <div className="grid gap-1 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-1">
+            <p>회사명: {APP_CONFIG.businessName}</p>
+            <p>대표자: {APP_CONFIG.businessRep}</p>
+            <p className="sm:col-span-2">주소: {APP_CONFIG.businessAddress}</p>
+            <p>전화: {APP_CONFIG.supportPhone}</p>
+            <p>이메일: {APP_CONFIG.supportEmail}</p>
+            <p>사업자등록번호: {APP_CONFIG.businessRegNo}</p>
+            <p>통신판매업신고번호: {APP_CONFIG.businessMailOrderNo}</p>
+            <p>개인정보 보호책임자: {APP_CONFIG.privacyOfficer}</p>
+            <p>호스팅 제공자: {APP_CONFIG.hostingProvider}</p>
+          </div>
           <p className="text-black">
             Copyright © {APP_CONFIG.businessName}. All Rights Reserved.
           </p>

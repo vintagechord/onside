@@ -33,8 +33,8 @@ export async function StripAdBanner() {
       : [
           {
             id: "fallback-banner",
-            title: "온사이드 심의 접수 안내",
-            image_url: "/media/hero/onside-hero-poster.jpg",
+            title: "GLIT 심의 접수 안내",
+            image_url: "/media/hero/glit-hero-poster.jpg",
             link_url: "/dashboard/new",
             starts_at: null,
             ends_at: null,

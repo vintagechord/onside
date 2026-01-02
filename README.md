@@ -1,6 +1,6 @@
-# Onside (MVP → v1)
+# GLIT (MVP → v1)
 
-음원/뮤직비디오 심의 접수·진행·결과 통보를 온라인으로 처리하는 서비스입니다.
+음원/뮤직비디오 심의를 접수하고 승인·아카이브까지 온라인으로 처리하는 서비스입니다.
 
 ## Tech Stack
 
@@ -25,17 +25,17 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 # Optional (UI/config)
-NEXT_PUBLIC_SUPPORT_EMAIL=onside17@daum.net
-NEXT_PUBLIC_SUPPORT_PHONE=010-5556-7083
-NEXT_PUBLIC_BANK_NAME=신한은행
-NEXT_PUBLIC_BANK_ACCOUNT=123-456-789012
-NEXT_PUBLIC_BANK_HOLDER=온사이드
+NEXT_PUBLIC_SUPPORT_EMAIL=help@vhouse.co.kr
+NEXT_PUBLIC_SUPPORT_PHONE=010-8436-9035
+NEXT_PUBLIC_BANK_NAME=국민은행
+NEXT_PUBLIC_BANK_ACCOUNT=073001-04-276967
+NEXT_PUBLIC_BANK_HOLDER=정준영(빈티지하우스)
 NEXT_PUBLIC_PRE_REVIEW_PRICE=0
 NEXT_PUBLIC_UPLOAD_MAX_MB=200
 
 # Optional (welcome email)
 RESEND_API_KEY=your_resend_key
-RESEND_FROM="Onside <no-reply@onside.local>"
+RESEND_FROM="GLIT <help@vhouse.co.kr>"
 ```
 
 3) Supabase SQL (run in SQL Editor)

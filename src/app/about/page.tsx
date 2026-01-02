@@ -27,15 +27,15 @@ export default function AboutPage() {
           <div className="relative z-10 grid gap-6 md:grid-cols-[1.1fr_0.9fr] md:items-center">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.5em] text-[var(--about-ink)]">
-                ONSIDE PROFILE
+                GLIT PROFILE
               </p>
               <h1 className="font-display mt-3 text-3xl leading-tight text-[var(--about-ink)] md:text-4xl">
-                온사이드
+                글릿(GLIT)
               </h1>
               <p className="mt-3 text-base leading-relaxed text-[var(--about-ink)]/80 md:text-lg">
-                2017년부터 음반·뮤직비디오 심의 대행을 전문적으로 수행하며,
-                아티스트와 기획사의 일정에 맞춘 빠르고 안정적인 심의 경험을
-                제공합니다.
+                빈티지하우스가 운영하는 GLIT은 음반·뮤직비디오 심의를 온라인으로
+                연결해 “방송 가능” 상태까지 빠르고 안전하게 만들어줍니다. 심의
+                진행, 승인, 기록 아카이브를 한 곳에서 관리하세요.
               </p>
               <div className="mt-5 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--about-ink)]/70">
                 {[
@@ -56,21 +56,21 @@ export default function AboutPage() {
             <div className="relative">
               <div className="relative overflow-hidden rounded-[28px] border border-border/60 bg-white/80">
                 <img
-                  src="/media/hero/onside-hero-poster.jpg"
-                  alt="온사이드 심의 서비스 소개 이미지"
+                  src="/media/hero/glit-hero-poster.jpg"
+                  alt="GLIT 심의 서비스 소개 이미지"
                   className="h-[220px] w-full object-cover md:h-[260px]"
                   loading="lazy"
                 />
               </div>
               <div className="mt-3 flex items-center gap-3">
                 <img
-                  src="/brand/onside-logo.svg"
-                  alt="온사이드 로고"
+                  src="/brand/glit-logo.svg"
+                  alt="GLIT 로고"
                   className="h-6 w-auto"
                   loading="lazy"
                 />
                 <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--about-ink)]/60">
-                  End-to-end review support
+                  Ready to Air · Officially Greenlit
                 </p>
               </div>
             </div>

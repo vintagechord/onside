@@ -84,8 +84,8 @@ export function AboutRevealSection() {
               정식 등록 업체
             </p>
             <p className="text-base leading-relaxed text-white/80">
-              온사이드는 사업자 및 음반/음악영상물제작업 등록을 마친 정식
-              업체입니다.
+              GLIT은 빈티지하우스가 운영하는 정식 심의 대행 서비스로, 사업자와
+              음반/음악영상물제작업 등록을 모두 마쳤습니다.
             </p>
           </div>
         </section>

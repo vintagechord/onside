@@ -26,14 +26,14 @@ export async function SiteHeader() {
               <>
                 <img
                   src={APP_CONFIG.logoPath}
-                  alt="Onside"
-                  className="h-7 w-auto transition dark:invert dark:brightness-200"
+                  alt="GLIT"
+                  className="h-7 w-auto"
                 />
-                <span className="sr-only">Onside</span>
+                <span className="sr-only">GLIT</span>
               </>
             ) : (
               <span className="text-lg font-semibold tracking-[0.3em] text-foreground">
-                ONSIDE
+                GLIT
               </span>
             )}
           </Link>

@@ -83,7 +83,7 @@ const featureHighlights = [
   {
     title: "실시간 진행 알림",
     description:
-      "각 방송국별 심의 진행 상황을 실시간으로!\n회원/비회원 모두에게 제공",
+      "각 방송국별 심의 진행 상황을 실시간으로 확인하고 승인 기록을 남깁니다.\n회원/비회원 모두에게 제공",
     card:
       "bg-[#f7f8fb] text-[#1f2937] border-white/80 shadow-[0_16px_40px_rgba(15,23,42,0.08)]",
     visual: "from-[#d7ecff] via-white to-[#eef6ff]",
@@ -123,7 +123,7 @@ const featureHighlights = [
   {
     title: "파일 업로드",
     description:
-      "음원/M/V 신청서를 작성하며, 파일도 동시에 업로드하세요.\n심의 종료까지 파일은 안전하게 보관됩니다.",
+      "음원/M/V 신청서를 작성하며, 파일도 동시에 업로드하세요.\n복잡한 심의를 GLIT에서 도장 찍듯 간단하게 처리합니다.",
     card:
       "bg-white text-[#1f2937] border-[#eef2f7] shadow-[0_16px_40px_rgba(15,23,42,0.08)]",
     visual: "from-[#e7fff2] via-white to-[#eaf7ff]",
@@ -158,7 +158,7 @@ const featureHighlights = [
   {
     title: "관리자 승인",
     description:
-      "신청접수 프로세스로 1차 체크!\n방송사 전달 시 한번 더 완벽하게!",
+      "신청 접수 시 1차 체크, 방송국 전달 전 2차 검수로 빈틈 없이.\nClear. Approved. Out.",
     card:
       "bg-[#eef2ff] text-[#1f2937] border-[#dbe5ff] shadow-[0_16px_40px_rgba(15,23,42,0.08)]",
     visual: "from-[#fff4d6] via-white to-[#ffe9d6]",
@@ -296,19 +296,19 @@ export default async function Home() {
   const isLoggedIn = Boolean(user);
   const heroVideoDesktop =
     process.env.NEXT_PUBLIC_HERO_VIDEO_DESKTOP ??
-    "/media/hero/onside-hero-desktop.mp4";
+    "/media/hero/glit-hero-desktop.mp4";
   const heroVideoMobile =
     process.env.NEXT_PUBLIC_HERO_VIDEO_MOBILE ??
-    "/media/hero/onside-hero-mobile.mp4";
+    "/media/hero/glit-hero-mobile.mp4";
   const heroVideoPoster =
     process.env.NEXT_PUBLIC_HERO_VIDEO_POSTER ??
-    "/media/hero/onside-hero-poster.jpg";
+    "/media/hero/glit-hero-poster.jpg";
   const hasHeroVideo = Boolean(heroVideoDesktop || heroVideoMobile);
 
   const sampleAlbum: SubmissionSnapshot = {
     id: "sample-album",
     title: "샘플 앨범 심의",
-    artist_name: "온사이드",
+    artist_name: "글릿",
     status: "IN_PROGRESS",
     payment_status: "PAID",
     updated_at: new Date().toISOString(),
@@ -316,7 +316,7 @@ export default async function Home() {
   const sampleMv: SubmissionSnapshot = {
     id: "sample-mv",
     title: "샘플 MV 심의",
-    artist_name: "온사이드",
+    artist_name: "글릿",
     status: "WAITING_PAYMENT",
     payment_status: "PAYMENT_PENDING",
     updated_at: new Date().toISOString(),
@@ -440,15 +440,15 @@ export default async function Home() {
           <div className="relative z-10 mx-auto grid w-full max-w-6xl gap-10 px-6 py-10 lg:grid-cols-[1.05fr_0.95fr]">
             <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700 lg:min-h-[520px] lg:h-full">
               <span className="inline-flex w-fit items-center rounded-full border border-border/60 bg-background/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-foreground/80">
-                SINCE 2017
+                Officially Greenlit
               </span>
               <h1 className="font-display text-4xl leading-tight text-foreground sm:text-5xl">
-                심의의 모든 것
-                <br />
-                온사이드에서 관리하세요
+                GLIT(글릿) — 심의부터 방송 가능까지, 한 번에.
               </h1>
               <p className="max-w-xl text-base text-muted-foreground sm:text-lg">
-                접수부터 실시간 결과확인, 나의 지난 심의 관리까지 쉽고 간편하게
+                음반·뮤직비디오 심의를 온라인으로 신청하고, 승인까지 실시간으로
+                확인하세요. 방송 가능 판정과 모든 기록 아카이브를 GLIT 한 곳에서
+                끝냅니다.
               </p>
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 {heroCtas.map((cta) => (
