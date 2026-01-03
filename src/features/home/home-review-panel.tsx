@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import * as React from "react";
 import { formatDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
@@ -142,7 +143,7 @@ function getSubmissionLabels(submission?: SubmissionSummary | null) {
   };
 }
 
-const stationLogoMap: Record<
+const stationBadgeMap: Record<
   string,
   { label: string; color: string; bg: string }
 > = {
@@ -168,18 +169,68 @@ const stationLogoMap: Record<
   TBN: { label: "TBN", color: "#0ea5e9", bg: "#e0f7ff" },
   KISS: { label: "KISS", color: "#15803d", bg: "#e4f6ea" },
   GUGAK: { label: "GUGAK", color: "#92400e", bg: "#f7efe6" },
+  EBS: { label: "EBS", color: "#0d6e8d", bg: "#e1edf5" },
+  TVN: { label: "TVN", color: "#d90429", bg: "#fde8ec" },
+  JTBC: { label: "JTBC", color: "#ff7f50", bg: "#fff0e8" },
+  G1: { label: "G1", color: "#2563eb", bg: "#e0ebff" },
 };
+
+const stationLogoSources: Array<{
+  patterns: string[];
+  src: string;
+  alt: string;
+}> = [
+  { patterns: ["KBS", "KBS 1FM", "KBS 2FM"], src: "/station-logos/kbs.svg", alt: "KBS" },
+  { patterns: ["MBC", "MBC FM4U", "MBC 표준FM"], src: "/station-logos/mbc.svg", alt: "MBC" },
+  { patterns: ["SBS", "SBS 파워FM", "SBS 러브FM"], src: "/station-logos/sbs.svg", alt: "SBS" },
+  { patterns: ["TBS", "TBS EFM"], src: "/station-logos/tbs.svg", alt: "TBS" },
+  { patterns: ["YTN"], src: "/station-logos/ytn.svg", alt: "YTN" },
+  { patterns: ["CBS"], src: "/station-logos/cbs.svg", alt: "CBS" },
+  { patterns: ["BBS"], src: "/station-logos/bbs.svg", alt: "BBS 불교방송" },
+  { patterns: ["WBS"], src: "/station-logos/wbs.svg", alt: "WBS" },
+  { patterns: ["PBC"], src: "/station-logos/pbc.svg", alt: "PBC 평화방송" },
+  { patterns: ["FEBC"], src: "/station-logos/febc.svg", alt: "FEBC 극동방송" },
+  { patterns: ["ARIRANG"], src: "/station-logos/arirang.svg", alt: "Arirang" },
+  { patterns: ["GYEONGIN IFM", "KFM", "IFM"], src: "/station-logos/ifm.svg", alt: "경인방송 iFM" },
+  { patterns: ["TBN"], src: "/station-logos/tbn.svg", alt: "TBN" },
+  { patterns: ["KISS"], src: "/station-logos/kiss.svg", alt: "KISS" },
+  { patterns: ["GUGAK"], src: "/station-logos/gugak.svg", alt: "국악방송" },
+  { patterns: ["EBS"], src: "/station-logos/ebs.svg", alt: "EBS" },
+  { patterns: ["TVN"], src: "/station-logos/tvn.svg", alt: "tvN" },
+  { patterns: ["JTBC"], src: "/station-logos/jtbc.svg", alt: "JTBC" },
+  { patterns: ["G1", "GFM"], src: "/station-logos/g1.svg", alt: "G1" },
+];
 
 function StationLogo({ name }: { name?: string | null }) {
   const key = (name ?? "").trim().toUpperCase();
-  const logo = stationLogoMap[key] ?? { label: key || "-", color: "#111", bg: "#e5e7eb" };
+  const logoSource = stationLogoSources.find((entry) =>
+    entry.patterns.some(
+      (pattern) => key === pattern || key.startsWith(pattern),
+    ),
+  );
+
+  if (logoSource) {
+    return (
+      <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-white shadow-sm">
+        <Image
+          src={logoSource.src}
+          alt={logoSource.alt}
+          width={28}
+          height={28}
+          className="h-7 w-7 object-contain"
+        />
+      </span>
+    );
+  }
+
+  const badge = stationBadgeMap[key] ?? { label: key || "-", color: "#111", bg: "#e5e7eb" };
   return (
     <span
       className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold uppercase"
-      style={{ color: logo.color, backgroundColor: logo.bg }}
+      style={{ color: badge.color, backgroundColor: badge.bg }}
       aria-hidden
     >
-      {logo.label.slice(0, 4)}
+      {badge.label.slice(0, 4)}
     </span>
   );
 }

@@ -28,6 +28,13 @@ function ResetPasswordContent() {
     const run = async () => {
       if (typeof window === "undefined") return;
 
+      // 이미 세션이 있으면(이전에 코드가 교환된 경우) 바로 진행
+      const { data: existing } = await supabase.auth.getSession();
+      if (existing?.session) {
+        setStatus({ state: "ready" });
+        return;
+      }
+
       // Supabase recovery 링크는 ?token 또는 ?code 쿼리로 전달되거나,
       // #access_token/#refresh_token 해시로 전달될 수 있음.
       const code =
@@ -47,15 +54,28 @@ function ResetPasswordContent() {
             token_hash: code,
           });
         if (verifyError || !verifyData.session) {
+          const message = exchangeError?.message?.includes("PKCE")
+            ? "메일을 요청한 동일한 브라우저/기기에서 링크를 열어주세요. (비공개 창/다른 앱에서 열면 PKCE 검증이 실패합니다.) 새 링크를 요청해주세요."
+            : "세션을 확인할 수 없습니다. 링크가 만료되었거나 이미 사용되었습니다. 새 링크를 요청해주세요.";
           setStatus({
             state: "error",
-            message:
-              "세션을 확인할 수 없습니다. 링크가 만료되었거나 이미 사용되었습니다. 새 링크를 요청해주세요.",
+            message,
           });
           return;
         }
 
-        setStatus({ state: "ready" });
+        // verifyOtp 로 세션이 잡힌 경우도 포함
+        const { data: postVerify } = await supabase.auth.getSession();
+        if (postVerify?.session) {
+          setStatus({ state: "ready" });
+          return;
+        }
+
+        setStatus({
+          state: "error",
+          message:
+            "세션을 확인할 수 없습니다. 링크가 만료되었거나 이미 사용되었습니다. 새 링크를 요청해주세요.",
+        });
         return;
       }
 
